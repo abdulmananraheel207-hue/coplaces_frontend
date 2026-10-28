@@ -28,8 +28,5 @@ const ocrData = () => {
 
 export default defineConfig({
   plugins: [react(), tailwindcss(), ocrData()],
-  server: {
-    port: 5173,
-    proxy: { '/api': 'https://coplacesbackend.vercel.app' },
-  },
+  server: { port: 5173 },
 });

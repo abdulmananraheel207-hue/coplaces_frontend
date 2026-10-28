@@ -1,11 +1,11 @@
 import { useRef, useState } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import { ChevronLeft, ChevronRight, ImagePlus, Trash2 } from 'lucide-react';
-import { api, ApiError } from '../api';
+import { api, API_URL, ApiError } from '../api';
 import { useRefresh } from '../lib/queries';
 import { Button, ErrorNote, Modal } from './ui';
 
-export const photoUrl = (id: string) => `/api/resources/photos/${id}/file`;
+export const photoUrl = (id: string) => `${API_URL}/resources/photos/${id}/file`;
 
 /** A row of small photos that open large when clicked. */
 export function PhotoStrip({ ids, name }: { ids: string[]; name: string }) {
@@ -73,7 +73,7 @@ export function PhotoManager({ resourceId, ids }: { resourceId: string; ids: str
     mutationFn: async (file: File) => {
       const blob = await shrink(file);
       const type = blob.type || file.type;
-      const res = await fetch(`/api/resources/${resourceId}/photos`, { method: 'POST', credentials: 'same-origin', headers: { 'content-type': type }, body: blob });
+      const res = await fetch(`${API_URL}/resources/${resourceId}/photos`, { method: 'POST', credentials: 'include', headers: { 'content-type': type }, body: blob });
       if (!res.ok) throw new ApiError(res.status, (await res.json().catch(() => null))?.error ?? 'Could not add the photo');
     },
     onSuccess: () => {
