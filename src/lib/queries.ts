@@ -15,6 +15,10 @@ export const useResources = (locationId: string) =>
 export const useFloorObjects = (locationId: string, enabled = true) =>
   useQuery({ queryKey: ['floor-objects', locationId], queryFn: () => api.get<FloorObject[]>('/floor-plan/objects', { locationId }), enabled });
 
+/** The floors a location has, named or in use, and how many the package allows (null is unlimited). */
+export const useFloors = (locationId: string) =>
+  useQuery({ queryKey: ['floors', locationId], queryFn: () => api.get<{ floors: string[]; limit: number | null }>('/floors', { locationId }) });
+
 export const usePresent = (locationId: string) =>
   useQuery({
     queryKey: ['attendance', locationId, 'open'],
@@ -39,9 +43,9 @@ export const useAnnouncements = (locationId: string) =>
 export const useOccupancy = (locationId: string, days: number, enabled = true) =>
   useQuery({ queryKey: ['occupancy', locationId, days], queryFn: () => api.get<Occupancy>('/reports/occupancy', { locationId, days }), enabled, staleTime: 60_000 });
 
-/** The shift templates of a location, for the booking form and for the page that manages them. */
-export const useShifts = (locationId: string) =>
-  useQuery({ queryKey: ['shifts', locationId], queryFn: () => api.get<ShiftTemplate[]>('/shifts', { locationId }) });
+/** The shifts of a location, for the booking form and for the page that manages them. With a member id, only the ones that member can use. */
+export const useShifts = (locationId: string, memberId?: string, enabled = true) =>
+  useQuery({ queryKey: ['shifts', locationId, memberId ?? ''], queryFn: () => api.get<ShiftTemplate[]>('/shifts', { locationId, memberId }), enabled });
 
 export const usePlans = (locationId: string) =>
   useQuery({ queryKey: ['plans', locationId], queryFn: () => api.get<Plan[]>('/plans', { locationId }) });

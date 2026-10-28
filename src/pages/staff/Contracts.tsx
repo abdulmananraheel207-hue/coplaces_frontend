@@ -2,6 +2,8 @@ import { useState, type FormEvent } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { api, errorMessage } from '../../api';
 import { useAuth, useLocation } from '../../auth';
+import { CompanyContractWizard } from '../../components/CompanyContractWizard';
+import { CompanyEditForm, ContractPeople, ExtendForm } from '../../components/CompanyContractTools';
 import { printContract } from '../../components/ContractPrint';
 import { MemberSelect } from '../../components/MemberSelect';
 import { useToast } from '../../components/toast';
@@ -14,6 +16,8 @@ import type { Contract, DepositEntry, PaymentMethod } from '../../types';
 const contractTone = { draft: 'hold', active: 'ok', ended: 'idle', cancelled: 'idle' } as const;
 const depositLabel = { pending: 'Not received', held: 'Held', refunded: 'Refunded', forfeited: 'Kept' } as const;
 const isReceived = (c: Contract) => c.advanceReceivedAt !== null;
+/** The company on a company contract, otherwise the member. */
+const who = (c: Contract) => c.companyName || c.memberName;
 const depositTone = { pending: 'hold', held: 'ok', refunded: 'idle', forfeited: 'busy' } as const;
 
 function ContractForm({ initial, onDone }: { initial?: Contract; onDone: () => void }) {
@@ -156,11 +160,11 @@ function ReceiveForm({ contract, what, onDone }: { contract: Contract; what: 'ad
       <p className="text-sm">
         {what === 'advance' ? (
           <>
-            {contract.memberName} pays an advance of <strong>{money(contract.advanceCents, loc.currency)}</strong>. It is rent paid ahead, so it counts as income from today.
+            {who(contract)} pays an advance of <strong>{money(contract.advanceCents, loc.currency)}</strong>. It is rent paid ahead, so it counts as income from today.
           </>
         ) : (
           <>
-            {contract.memberName} hands over a security deposit of <strong>{money(contract.depositCents, loc.currency)}</strong>. It is held for them and does not count as income.
+            {who(contract)} hands over a security deposit of <strong>{money(contract.depositCents, loc.currency)}</strong>. It is held for them and does not count as income.
           </>
         )}
       </p>
@@ -209,7 +213,7 @@ function DepositHistory({ contract }: { contract: Contract }) {
         </table>
       </div>
       <p className="text-sm text-slate">
-        Security deposit still held for {contract.memberName}: <strong className="num text-ink">{money(held, loc.currency)}</strong>. An advance is income when received, and a security deposit you keep is income on the day you keep it.
+        Security deposit still held for {who(contract)}: <strong className="num text-ink">{money(held, loc.currency)}</strong>. An advance is income when received, and a security deposit you keep is income on the day you keep it.
       </p>
     </div>
   );
@@ -243,7 +247,7 @@ function RefundForm({ contract, onDone }: { contract: Contract; onDone: () => vo
       className="space-y-4"
     >
       <p className="text-sm">
-        {contract.memberName} paid a security deposit of <strong>{money(contract.depositCents, loc.currency)}</strong>. Enter how much goes back to them. Anything you keep, such as for damage or unpaid rent, is counted as income. Enter 0 to keep all of it.
+        {who(contract)} paid a security deposit of <strong>{money(contract.depositCents, loc.currency)}</strong>. Enter how much goes back to them. Anything you keep, such as for damage or unpaid rent, is counted as income. Enter 0 to keep all of it.
       </p>
       <Field label={`Amount returned (${loc.currency})`}>
         <Input inputMode="decimal" required value={amount} onChange={(e) => setAmount(e.target.value)} />
@@ -265,7 +269,11 @@ function Contracts() {
   const toast = useToast();
   const refresh = useRefresh();
   const q = useQuery({ queryKey: ['contracts', loc.id], queryFn: () => api.get<Contract[]>('/contracts', { locationId: loc.id }) });
-  const [editing, setEditing] = useState<Contract | 'new' | null>(null);
+  const [editing, setEditing] = useState<Contract | null>(null);
+  const [creating, setCreating] = useState(false);
+  const [editingCompany, setEditingCompany] = useState<Contract | null>(null);
+  const [peopleOf, setPeopleOf] = useState<string | null>(null);
+  const [extending, setExtending] = useState<Contract | null>(null);
   const [refunding, setRefunding] = useState<Contract | null>(null);
   const [receiving, setReceiving] = useState<{ c: Contract; what: 'advance' | 'deposit' } | null>(null);
   const [history, setHistory] = useState<Contract | null>(null);
@@ -282,20 +290,20 @@ function Contracts() {
   return (
     <>
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-        <p className="max-w-xl text-sm text-slate">A contract rents a space to a member: a desk, an office, a room, a locker or a parking bay. Switching it on hands over the space, and ending it frees the space again.</p>
+        <p className="max-w-xl text-sm text-slate">A contract rents space to a company and its people. Starting it gives the employees their logins and hands over the spaces and desks, and ending it frees them again.</p>
         <span className="flex gap-2">
           <Button
             onClick={() =>
               downloadCsv('contracts.csv', [
                 ['Member', 'Company', 'Space', 'Starts', 'Ends', 'Rent per month', 'Advance', 'Advance received', 'Security deposit', 'Security deposit status', 'Returned', 'Status'],
-                ...(q.data ?? []).map((c) => [c.memberName, c.company, c.resourceName ?? '', c.startDate, c.endDate ?? '', fromCents(c.rentCents), fromCents(c.advanceCents), c.advanceReceivedAt ? 'Yes' : c.advanceCents ? 'No' : '', fromCents(c.depositCents), depositLabel[c.depositStatus], fromCents(c.depositReturnedCents), titleCase(c.status)]),
+                ...(q.data ?? []).map((c) => [who(c), c.company, c.companyName ? c.spaces.map((s) => s.name).join(' + ') : (c.resourceName ?? ''), c.startDate, c.endDate ?? '', fromCents(c.rentCents), fromCents(c.advanceCents), c.advanceReceivedAt ? 'Yes' : c.advanceCents ? 'No' : '', fromCents(c.depositCents), depositLabel[c.depositStatus], fromCents(c.depositReturnedCents), titleCase(c.status)]),
               ])
             }
             disabled={!q.data?.length}
           >
             Export
           </Button>
-          <Button variant="primary" onClick={() => setEditing('new')}>
+          <Button variant="primary" onClick={() => setCreating(true)}>
             New contract
           </Button>
         </span>
@@ -306,13 +314,13 @@ function Contracts() {
       ) : q.error ? (
         <ErrorNote error={q.error} />
       ) : !q.data?.length ? (
-        <Empty title="No contracts yet" hint="Add one when a member takes a dedicated desk or an office." action={<Button variant="primary" onClick={() => setEditing('new')}>New contract</Button>} />
+        <Empty title="No contracts yet" hint="Add one when a company takes a room, an office or desks for its people." action={<Button variant="primary" onClick={() => setCreating(true)}>New contract</Button>} />
       ) : (
         <div className="surface-table">
           <table className="tbl">
             <thead>
               <tr>
-                <th>Member</th>
+                <th>Company or member</th>
                 <th>Space</th>
                 <th>Period</th>
                 <th className="r">Rent / month</th>
@@ -330,10 +338,25 @@ function Contracts() {
                 return (
                   <tr key={c.id} className={finished ? 'text-slate' : ''}>
                     <td>
-                      <span className="font-semibold">{c.memberName}</span>
-                      {c.company && <span className="block text-xs text-slate">{c.company}</span>}
+                      <span className="font-semibold">{who(c)}</span>
+                      {c.companyName ? (
+                        <span className="block text-xs text-slate">
+                          {c.people.filter((p) => !p.leaveDate).length} people{c.extraPeople > 0 ? `, ${c.extraPeople} extra` : ''}
+                        </span>
+                      ) : (
+                        c.company && <span className="block text-xs text-slate">{c.company}</span>
+                      )}
                     </td>
-                    <td>{c.resourceName ?? 'None'}</td>
+                    <td>
+                      {c.companyName ? (
+                        <>
+                          {c.spaces.map((s) => s.name).join(', ') || 'Desks only'}
+                          {c.people.some((p) => p.deskName && !p.leaveDate) && <span className="block text-xs text-slate">{c.people.filter((p) => p.deskName && !p.leaveDate).length} own desks</span>}
+                        </>
+                      ) : (
+                        (c.resourceName ?? 'None')
+                      )}
+                    </td>
                     <td className="num whitespace-nowrap">
                       {fmtDate(c.startDate)} to {c.endDate ? fmtDate(c.endDate) : 'open'}
                     </td>
@@ -368,7 +391,7 @@ function Contracts() {
                           <Button small variant="primary" disabled={act.isPending} onClick={() => act.mutate({ id: c.id, path: 'activate', ok: 'Contract is active' })}>
                             Start
                           </Button>{' '}
-                          <Button small variant="ghost" onClick={() => setEditing(c)}>
+                          <Button small variant="ghost" onClick={() => (c.companyName ? setEditingCompany(c) : setEditing(c))}>
                             Edit
                           </Button>{' '}
                           <Button small variant="ghost" disabled={act.isPending} onClick={() => act.mutate({ id: c.id, path: 'cancel', ok: 'Contract cancelled' })}>
@@ -376,10 +399,37 @@ function Contracts() {
                           </Button>
                         </>
                       )}
+                      {c.companyName && !finished && (
+                        <>
+                          {' '}
+                          <Button small variant="ghost" onClick={() => setPeopleOf(c.id)}>
+                            People
+                          </Button>
+                        </>
+                      )}
+                      {c.companyName && c.status === 'active' && (
+                        <>
+                          {' '}
+                          <Button small variant="ghost" onClick={() => setEditingCompany(c)}>
+                            Prices
+                          </Button>
+                          {c.endDate && (
+                            <>
+                              {' '}
+                              <Button small variant="ghost" onClick={() => setExtending(c)}>
+                                Extend
+                              </Button>
+                            </>
+                          )}
+                        </>
+                      )}
                       {c.status === 'active' && (
-                        <Button small disabled={act.isPending} onClick={() => act.mutate({ id: c.id, path: 'end', body: {}, ok: 'Contract ended' })}>
-                          End today
-                        </Button>
+                        <>
+                          {' '}
+                          <Button small disabled={act.isPending} onClick={() => act.mutate({ id: c.id, path: 'end', body: {}, ok: 'Contract ended' })}>
+                            End today
+                          </Button>
+                        </>
                       )}
                       {c.advanceCents > 0 && !isReceived(c) && !finished && (
                         <>
@@ -413,9 +463,11 @@ function Contracts() {
                           </Button>
                         </>
                       )}{' '}
-                      <Button small variant="ghost" onClick={() => void printContract(c, loc, org?.name ?? loc.name)}>
-                        Print
-                      </Button>
+                      {!c.companyName && (
+                        <Button small variant="ghost" onClick={() => void printContract(c, loc, org?.name ?? loc.name)}>
+                          Print
+                        </Button>
+                      )}
                     </td>
                   </tr>
                 );
@@ -425,13 +477,25 @@ function Contracts() {
         </div>
       )}
 
-      <Modal open={editing !== null} onClose={() => setEditing(null)} title={editing === 'new' ? 'New contract' : 'Edit contract'} wide>
-        {editing && <ContractForm initial={editing === 'new' ? undefined : editing} onDone={() => setEditing(null)} />}
+      <Modal open={creating} onClose={() => setCreating(false)} title="New company contract" wide>
+        {creating && <CompanyContractWizard onDone={() => setCreating(false)} />}
+      </Modal>
+      <Modal open={editing !== null} onClose={() => setEditing(null)} title="Edit contract" wide>
+        {editing && <ContractForm initial={editing} onDone={() => setEditing(null)} />}
+      </Modal>
+      <Modal open={editingCompany !== null} onClose={() => setEditingCompany(null)} title={editingCompany ? `Edit ${editingCompany.companyName}` : 'Edit contract'} wide>
+        {editingCompany && <CompanyEditForm contract={editingCompany} onDone={() => setEditingCompany(null)} />}
+      </Modal>
+      <Modal open={peopleOf !== null} onClose={() => setPeopleOf(null)} title={`People at ${q.data?.find((c) => c.id === peopleOf)?.companyName ?? ''}`} wide>
+        {q.data?.find((c) => c.id === peopleOf) && <ContractPeople contract={q.data.find((c) => c.id === peopleOf)!} />}
+      </Modal>
+      <Modal open={extending !== null} onClose={() => setExtending(null)} title="Extend the contract">
+        {extending && <ExtendForm contract={extending} onDone={() => setExtending(null)} />}
       </Modal>
       <Modal open={receiving !== null} onClose={() => setReceiving(null)} title={receiving?.what === 'advance' ? 'Record the advance' : 'Record the security deposit'}>
         {receiving && <ReceiveForm contract={receiving.c} what={receiving.what} onDone={() => setReceiving(null)} />}
       </Modal>
-      <Modal open={history !== null} onClose={() => setHistory(null)} title={history ? `Money record of ${history.memberName}` : 'Money record'} wide>
+      <Modal open={history !== null} onClose={() => setHistory(null)} title={history ? `Money record of ${who(history)}` : 'Money record'} wide>
         {history && <DepositHistory contract={history} />}
       </Modal>
       <Modal open={refunding !== null} onClose={() => setRefunding(null)} title="Settle the security deposit">

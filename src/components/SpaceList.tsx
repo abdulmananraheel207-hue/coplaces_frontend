@@ -6,7 +6,7 @@ import { useFloorObjects } from '../lib/queries';
 import { plural } from '../lib/format';
 import type { ResourceKind } from '../types';
 import type { SpaceItem, Tone } from '../lib/spaceState';
-import { floorLabel, floorMark } from './space3d/layout';
+import { compareFloors, floorLabel, floorMark } from './space3d/layout';
 import { StatusMark, TONE_ORDER, TONE_WORD } from './StatusMark';
 import { Button, Input, Segmented, Select } from './ui';
 
@@ -23,7 +23,7 @@ const KIND_ICON: Record<ResourceKind, LucideIcon> = { room: Presentation, corpor
 
 const collator = new Intl.Collator('en', { numeric: true });
 const byName = (a: SpaceItem, b: SpaceItem) => collator.compare(a.name, b.name);
-const byFloor = (a: string, b: string) => collator.compare(a || '0', b || '0');
+const byFloor = compareFloors;
 const kindRank = (k: ResourceKind) => KIND_ORDER.indexOf(k);
 
 interface Filters {

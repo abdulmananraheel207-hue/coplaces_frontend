@@ -8,6 +8,7 @@ import { can } from '../../lib/permissions';
 import { ItemDetail } from '../../components/ItemDetail';
 import { QrSheet } from '../../components/QrSheet';
 import { ReportProblem } from '../../components/ReportProblem';
+import { FloorsForm } from '../../components/FloorsForm';
 import { SpaceForm } from '../../components/SpaceForm';
 import { MemberSelect } from '../../components/MemberSelect';
 import { SpaceBoard, use3d } from '../../components/SpaceBoard';
@@ -15,7 +16,7 @@ import { SpaceList } from '../../components/SpaceList';
 import { useToast } from '../../components/toast';
 import { Button, Chip, Empty, ErrorNote, Field, Input, Loading, Modal, PageHeader, Segmented, buttonClass } from '../../components/ui';
 import { fmtDate } from '../../lib/time';
-import { useFloorObjects, useOccupancy, useRefresh, useResources, useSchedule } from '../../lib/queries';
+import { useFloorObjects, useFloors, useOccupancy, useRefresh, useResources, useSchedule } from '../../lib/queries';
 import { buildSpaceItems, type SpaceItem } from '../../lib/spaceState';
 import { todayIn } from '../../lib/time';
 import type { Issue, Occupancy, Resource, SpaceAsset, SpaceTask } from '../../types';
@@ -147,6 +148,7 @@ export default function Spaces() {
   const refresh = useRefresh();
   const manager = can(user, 'spaces');
   const [editing, setEditing] = useState<Resource | 'new' | null>(null);
+  const [addingFloors, setAddingFloors] = useState(false);
   const [assigning, setAssigning] = useState<Resource | null>(null);
   const resources = useResources(loc.id);
   const schedule = useSchedule(loc.id, todayIn(loc.timezone));
@@ -159,6 +161,10 @@ export default function Spaces() {
   const maintenance = can(user, 'maintenance');
   const can3d = use3d();
   const floorObjects = useFloorObjects(loc.id, can3d);
+  const floors = useFloors(loc.id);
+  // With the 3D editor, spaces are drawn on floors; Add space only names the floors. Without it, spaces are added one by one.
+  const floorsFirst = can3d;
+  const addSpace = () => (floorsFirst ? setAddingFloors(true) : setEditing('new'));
   const assignments = useQuery({
     queryKey: ['assignments', loc.id],
     queryFn: () => api.get<{ id: string; resourceId: string; startDate: string; endDate: string | null }[]>('/assignments', { locationId: loc.id }),
@@ -222,28 +228,36 @@ export default function Spaces() {
           </Button>
         )}
         {manager && can3d && !drawing && (
-          <Button onClick={() => setDrawing(true)} disabled={resources.isLoading || floorObjects.isLoading}>
+          <Button onClick={() => setDrawing(true)} disabled={resources.isLoading || floorObjects.isLoading || floors.isLoading}>
             <PencilRuler size={16} aria-hidden /> Edit floor plan
           </Button>
         )}
         {manager && !drawing && (
-          <Button variant="primary" onClick={() => setEditing('new')}>
-            Add space
+          <Button variant="primary" onClick={addSpace}>
+            {floorsFirst ? 'Add floors' : 'Add space'}
           </Button>
         )}
       </PageHeader>
 
-      {drawing && resources.data && floorObjects.data ? (
+      {drawing && resources.data && floorObjects.data && !floors.isLoading ? (
         <Suspense fallback={<Loading label="Loading the floor plan editor" />}>
-          <FloorPlanEditor locationId={loc.id} locationName={loc.name} currency={loc.currency} resources={resources.data} objects={floorObjects.data} onClose={() => setDrawing(false)} />
+          <FloorPlanEditor locationId={loc.id} locationName={loc.name} currency={loc.currency} resources={resources.data} objects={floorObjects.data} floors={floors.data?.floors} floorLimit={floors.data?.limit ?? null} onClose={() => setDrawing(false)} />
         </Suspense>
       ) : resources.isLoading ? (
         <Loading />
       ) : all.length === 0 ? (
         <Empty
           title="No spaces yet"
-          hint={manager ? 'Add your rooms, desks and offices and they will appear on the live board.' : 'Someone with the spaces permission can add them.'}
-          action={manager && <Button variant="primary" onClick={() => setEditing('new')}>Add space</Button>}
+          hint={
+            !manager
+              ? 'Someone with the spaces permission can add them.'
+              : floorsFirst
+                ? floors.data?.floors.length
+                  ? 'Your floors are ready. Open Edit floor plan to add meeting rooms, desks and more to them.'
+                  : 'Start by adding your floors. Then add rooms, desks and offices to them in Edit floor plan.'
+                : 'Add your rooms, desks and offices and they will appear on the live board.'
+          }
+          action={manager && <Button variant="primary" onClick={addSpace}>{floorsFirst ? 'Add floors' : 'Add space'}</Button>}
         />
       ) : (
         <>
@@ -269,6 +283,9 @@ export default function Spaces() {
 
       <Modal open={editing !== null} onClose={() => setEditing(null)} title={editing === 'new' ? 'Add a space' : 'Edit space'} wide>
         {editing && <SpaceForm initial={editing === 'new' ? undefined : editing} kind="room" onDone={() => setEditing(null)} />}
+      </Modal>
+      <Modal open={addingFloors} onClose={() => setAddingFloors(false)} title="Floors">
+        {addingFloors && <FloorsForm onDone={() => setAddingFloors(false)} />}
       </Modal>
       <QrSheet open={qr} onClose={() => setQr(false)} spaces={all} place={loc.name} />
       <ReportProblem open={reporting !== null} onClose={() => setReporting(null)} resourceId={reporting ?? undefined} />

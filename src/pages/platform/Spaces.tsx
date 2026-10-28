@@ -37,7 +37,6 @@ function RegisterForm({ onDone }: { onDone: (created: { id: string; ownerName: s
     locName: '',
     locCode: '',
     locAddress: '',
-    tax: '0',
   });
   const [codeTouched, setCodeTouched] = useState(false);
   const set = (k: keyof typeof v, val: string) => setV((x) => ({ ...x, [k]: val }));
@@ -54,7 +53,7 @@ function RegisterForm({ onDone }: { onDone: (created: { id: string; ownerName: s
         status: v.status,
         notes: v.notes,
         owner: { name: v.ownerName, email: v.ownerEmail, phone: v.ownerPhone },
-        location: { name: v.locName || v.name, code: v.locCode || suggestCode(v.locName || v.name), address: v.locAddress, taxRateBps: Math.round(Number(v.tax) * 100) },
+        location: { name: v.locName || v.name, code: v.locCode || suggestCode(v.locName || v.name), address: v.locAddress },
       }),
     onSuccess: (r) => {
       void refresh('platform');
@@ -153,10 +152,7 @@ function RegisterForm({ onDone }: { onDone: (created: { id: string; ownerName: s
         <Field label="Address">
           <Input value={v.locAddress} onChange={(e) => set('locAddress', e.target.value)} maxLength={300} />
         </Field>
-        <Field label="Sales tax on invoices (%)" hint="For example 13 in Sindh or 16 in Punjab and Islamabad. The owner can change it later.">
-          <Input type="number" step="0.01" min={0} max={100} value={v.tax} onChange={(e) => set('tax', e.target.value)} className="max-w-32" />
-        </Field>
-        <p className="text-xs text-slate">Currency is PKR and the time zone is Pakistan time. The owner can change both in Settings.</p>
+        <p className="text-xs text-slate">Currency is PKR and the time zone is Pakistan time. The owner can change both in Settings, and sets the sales tax there too.</p>
       </fieldset>
 
       <Field label="Internal notes">

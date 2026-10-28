@@ -143,9 +143,9 @@ export interface Start {
  * Starts a session from what is stored. Everything, placed or not, gets a position now: spaces that were
  * never placed take the spot the automatic layout would give them, so saving fixes them in place.
  */
-export function startDraft(resources: Resource[], objects: FloorObject[]): Start {
+export function startDraft(resources: Resource[], objects: FloorObject[], floors: string[] = []): Start {
   const live = resources.filter((r) => r.status !== 'retired');
-  const layouts = layoutFloors(live.map(asItem), objects);
+  const layouts = layoutFloors(live.map(asItem), objects, { floors });
   const things: Thing[] = [];
   const origins: Start['origins'] = {};
   const byId = new Map(live.map((r) => [r.id, r]));
@@ -454,6 +454,8 @@ export interface Changes {
 
 export interface SaveBody {
   locationId: string;
+  /** Floors with nothing on them yet, so they are kept. */
+  floors?: string[];
   update: { id: string; plan: { x: number; z: number; rot: number; w: number | null; d: number | null }; props?: Record<string, string | number> }[];
   create: {
     kind: ResourceKind;
@@ -529,6 +531,8 @@ export function buildSave(locationId: string, draft: Draft, resources: Resource[
       changes.removed++;
     }
   }
+  const bare = draft.floors.filter((f) => f && !draft.things.some((t) => t.floor === f));
+  if (bare.length) body.floors = bare;
   return { body, changes };
 }
 

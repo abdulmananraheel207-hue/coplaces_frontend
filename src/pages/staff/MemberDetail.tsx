@@ -253,7 +253,7 @@ export default function MemberDetail() {
               rows={[
                 { label: 'Email', value: <span className="break-all text-sm">{m.email}</span> },
                 { label: 'Phone', value: m.phone || '—' },
-                { label: 'Plan', value: m.plan ? `${m.plan.name}, ${money(m.plan.priceCents, loc.currency)}/${m.plan.interval}` : 'No plan' },
+                { label: m.contractCompany ? 'Contract' : 'Plan', value: m.contractCompany ? `Through ${m.contractCompany}` : m.plan ? `${m.plan.name}, ${m.plan.interval === 'month' ? 'monthly' : 'day pass'}` : 'No plan' },
                 { label: 'Member since', value: fmtDate(m.startDate) },
                 ...(m.endDate ? [{ label: 'Ends', value: fmtDate(m.endDate) }] : []),
               ]}

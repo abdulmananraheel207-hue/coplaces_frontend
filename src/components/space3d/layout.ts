@@ -111,17 +111,26 @@ const CORE = OBJECTS.core;
 const clamp = (n: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, n));
 
 const collator = new Intl.Collator('en', { numeric: true });
+/** Lowest floor first: the unnamed ground floor, or one named "Ground ...", then the rest in natural order. */
+export const compareFloors = (a: string, b: string) => {
+  const key = (f: string) => (!f || /^ground/i.test(f) ? '0' : f);
+  return collator.compare(key(a), key(b));
+};
 const sortItems = (xs: SpaceItem[]) => [...xs].sort((a, b) => collator.compare(a.name, b.name));
 
 export const floorKey = (floor: string) => floor || 'ground';
 
 export function floorLabel(floor: string) {
-  return floor ? `Floor ${floor}` : 'Ground floor';
+  // A number or short code reads as "Floor 4"; a name the owner gave, like "Ground Floor", stands as it is.
+  return !floor ? 'Ground floor' : floor.length <= 3 ? `Floor ${floor}` : floor;
 }
 
 /** What goes on a lift button: the floor number, or G for the ground floor. */
 export function floorMark(floor: string) {
-  return floor ? floor.slice(0, 3) : 'G';
+  if (!floor) return 'G';
+  if (floor.length <= 3) return floor;
+  const words = floor.split(/\s+/).filter(Boolean);
+  return (words.length > 1 ? words.map((w) => w[0]).join('') : floor).slice(0, 3).toUpperCase();
 }
 
 export function wallHeight(kind: SpaceItem['kind']) {
@@ -268,7 +277,7 @@ export interface LayoutOptions {
 }
 
 export function layoutFloors(items: SpaceItem[], objects: FloorObject[] = [], options: LayoutOptions = {}): FloorLayout[] {
-  const floors = [...new Set([...items.map((i) => i.floor), ...objects.map((o) => o.floor), ...(options.floors ?? [])])].sort((a, b) => collator.compare(a || '0', b || '0'));
+  const floors = [...new Set([...items.map((i) => i.floor), ...objects.map((o) => o.floor), ...(options.floors ?? [])])].sort(compareFloors);
 
   return floors.map((floor, index) => {
     const key = floorKey(floor);

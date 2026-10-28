@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { PALETTE, nextName, type PaletteEntry } from '../../lib/catalogue';
 import type { FloorObject, Resource } from '../../types';
 import { addFloor, alignThings, anyCollision, applyTemplate, boxOf, buildSave, duplicateThings, findSpot, fits, floorsOf, isResizable, limitsOf, moveThing, moveThings, placeGrid, placeThing, problems, removeThing, removeThings, resizeThing, rotateThing, startDraft, toTemplate, type Draft, type Thing } from './editorModel';
-import { floorKey, footprint, layoutFloors, overlaps, type Box } from './layout';
+import { compareFloors, floorKey, floorLabel, floorMark, footprint, layoutFloors, overlaps, type Box } from './layout';
 import type { SpaceItem } from '../../lib/spaceState';
 
 let n = 0;
@@ -119,6 +119,22 @@ describe('saving', () => {
     const { body, changes } = buildSave('loc', startDraft(r, o).draft, r, o);
     expect(body).toMatchObject({ update: [], create: [], retire: [], objects: { upsert: [], remove: [] } });
     expect(changes).toEqual({ added: 0, changed: 0, removed: 0 });
+  });
+
+  it('keeps floors named by the owner even when nothing is on them', () => {
+    const r = rs();
+    const { draft } = startDraft(r, [], ['Roof Deck']);
+    expect(floorsOf(draft)).toContain('Roof Deck');
+    expect(buildSave('loc', draft, r, []).body.floors).toEqual(['Roof Deck']);
+    expect(buildSave('loc', startDraft(r, []).draft, r, []).body.floors).toBeUndefined();
+  });
+
+  it('labels numbered floors as such and named floors as named', () => {
+    expect(floorLabel('4')).toBe('Floor 4');
+    expect(floorLabel('Ground Floor')).toBe('Ground Floor');
+    expect(floorMark('Ground Floor')).toBe('GF');
+    expect(floorMark('2')).toBe('2');
+    expect(['Floor 2', 'Ground Floor', 'Floor 10', 'Floor 1'].sort(compareFloors)).toEqual(['Ground Floor', 'Floor 1', 'Floor 2', 'Floor 10']);
   });
 
   it('does not mistake float noise for an edit', () => {
