@@ -203,7 +203,7 @@ export default function MemberHome() {
               <Ledger
                 rows={[
                   { label: 'Plan', value: s.plan.name },
-                  { label: 'Price', value: `${money(s.plan.priceCents, s.currency)} / ${s.plan.interval}` },
+                  { label: 'Billed', value: s.plan.interval === 'month' ? 'Monthly' : 'Day pass' },
                   { label: 'Hot desks', value: s.plan.includesHotDesk ? 'Included' : 'Pay per day' },
                   { label: 'Status', value: <Chip tone={s.member.status === 'active' ? 'ok' : 'hold'}>{s.member.status}</Chip> },
                 ]}

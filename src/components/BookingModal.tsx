@@ -67,12 +67,12 @@ function BookingForm({
   const [notes, setNotes] = useState('');
   // A hot desk is booked for the whole day unless the person picks times, or one of the owner's shifts.
   const [mode, setMode] = useState<'day' | 'times'>(draft.startTime ? 'times' : 'day');
-  const shifts = useShifts(loc.id);
+  const shifts = useShifts(loc.id, staff ? memberId || undefined : undefined, !staff || !!memberId);
 
   const resource = bookable.find((r) => r.id === resourceId);
   const isDesk = resource?.kind === 'hot_desk';
   const isRoom = (!!resource && isRoomKind(resource.kind)) || (isDesk && mode === 'times');
-  const shiftsHere = (shifts.data ?? []).filter((s) => s.active && (s.resourceId === resourceId || (!s.resourceId && (!s.kind || s.kind === resource?.kind))));
+  const shiftsHere = (shifts.data ?? []).filter((s) => s.active && (s.spaceIds.length ? s.spaceIds.includes(resourceId) : s.resourceId === resourceId || (!s.resourceId && (!s.kind || s.kind === resource?.kind))));
   const today = todayIn(loc.timezone);
   // A space can keep its own opening hours.
   const openTime = resource?.openTime ?? loc.openTime;

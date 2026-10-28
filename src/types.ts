@@ -105,6 +105,8 @@ export interface MemberRow {
   company: string;
   planId: string | null;
   planName: string | null;
+  /** Set for members created from a company contract: the company they come in through. */
+  contractCompany: string | null;
   status: MemberStatus;
   startDate: string;
   endDate: string | null;
@@ -205,6 +207,11 @@ export interface ShiftTemplate {
   id: string;
   locationId: string;
   name: string;
+  /** Null for shifts made before shifts lived inside plans. */
+  planId: string | null;
+  /** The spaces it is limited to; empty means every bookable space. */
+  spaceIds: string[];
+  /** Older single-space / single-kind scope, only on shifts made before spaceIds. */
   resourceId: string | null;
   kind: ResourceKind | null;
   startTime: string;
@@ -561,6 +568,42 @@ export interface Contract {
   advanceReceivedAt: string | null;
   status: ContractStatus;
   notes: string;
+  /** A company contract has a company name; older single-member contracts have none. */
+  companyName: string;
+  companyEmail: string;
+  companyPhone: string;
+  pricingMode: 'per_member' | 'fixed';
+  pricePerMemberCents: number;
+  extraMemberCents: number;
+  fixedPriceCents: number;
+  people: ContractPerson[];
+  spaces: { id: string; name: string; kind: ResourceKind; capacity: number }[];
+  /** Seats in the shared spaces, and how many people share them beyond that. */
+  seats: number;
+  extraPeople: number;
+}
+
+export interface ContractPerson {
+  id: string;
+  memberId: string;
+  name: string;
+  email: string;
+  phone: string;
+  deskResourceId: string | null;
+  deskName: string | null;
+  joinDate: string;
+  leaveDate: string | null;
+}
+
+/** A room or desk a company could take, and whether it is free for the whole contract. */
+export interface AvailableSpace {
+  id: string;
+  name: string;
+  kind: ResourceKind;
+  floor: string;
+  capacity: number;
+  free: boolean;
+  busy: string | null;
 }
 
 export interface DepositEntry {

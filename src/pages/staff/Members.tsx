@@ -159,7 +159,7 @@ export default function Members() {
                       </div>
                     </div>
                   </td>
-                  <td>{m.planName ?? <span className="text-slate">No plan</span>}</td>
+                  <td>{m.contractCompany ? <Chip tone="hold">Contract: {m.contractCompany}</Chip> : (m.planName ?? <span className="text-slate">No plan</span>)}</td>
                   <td>
                     <Chip tone={statusTone(m.status)}>{titleCase(m.status)}</Chip>
                   </td>

@@ -20,7 +20,6 @@ import Bookings from './pages/staff/Bookings';
 import Contracts from './pages/staff/Contracts';
 import Devices from './pages/staff/Devices';
 import Maintenance from './pages/staff/Maintenance';
-import ShiftTemplates from './pages/staff/ShiftTemplates';
 import SpaceScan from './pages/SpaceScan';
 import Dashboard from './pages/staff/Dashboard';
 import Expenses from './pages/staff/Expenses';
@@ -57,7 +56,7 @@ function StaffRoutes() {
         <Route path="members" element={<RequirePermission permission="members"><Members /></RequirePermission>} />
         <Route path="members/:id" element={<RequirePermission permission="members"><MemberDetail /></RequirePermission>} />
         <Route path="spaces" element={<Spaces />} />
-        <Route path="shifts" element={<RequirePermission permission="spaces"><ShiftTemplates /></RequirePermission>} />
+        <Route path="shifts" element={<Navigate to="/plans" replace />} />
         <Route path="money/*" element={<Navigate to="/finance" replace />} />
         <Route path="finance" element={<FinanceLayout />}>
           <Route index element={<FinanceIndex />} />
