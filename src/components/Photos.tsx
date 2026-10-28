@@ -73,7 +73,7 @@ export function PhotoManager({ resourceId, ids }: { resourceId: string; ids: str
     mutationFn: async (file: File) => {
       const blob = await shrink(file);
       const type = blob.type || file.type;
-      const res = await fetch(`${API_URL}/resources/${resourceId}/photos`, { method: 'POST', credentials: 'include', headers: { 'content-type': type }, body: blob });
+      const res = await fetch(`${API_URL}/resources/${resourceId}/photos`, { method: 'POST', credentials: 'same-origin', headers: { 'content-type': type }, body: blob });
       if (!res.ok) throw new ApiError(res.status, (await res.json().catch(() => null))?.error ?? 'Could not add the photo');
     },
     onSuccess: () => {
