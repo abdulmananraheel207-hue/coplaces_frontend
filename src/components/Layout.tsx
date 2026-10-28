@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { NavLink, Outlet, useLocation as useRoute } from 'react-router';
-import { Building2, CalendarClock, CalendarDays, CreditCard, DoorOpen, FileSignature, Megaphone, Wrench, LayoutDashboard, LayoutGrid, LogOut, Menu, Package, Receipt, Settings, Tags, UserRound, Users, X } from 'lucide-react';
+import { Building2, CalendarClock, CalendarDays, CreditCard, DoorOpen, FileSignature, Fingerprint, Megaphone, Wrench, LayoutDashboard, LayoutGrid, LogOut, Menu, Package, Receipt, Settings, Tags, UserRound, Users, X } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../api';
 import { useAuth, useFeature } from '../auth';
@@ -231,6 +231,11 @@ export function StaffShell() {
           {can(user, 'announcements') && (
             <SideLink to="/announcements" icon={<Megaphone size={17} />}>
               Announcements
+            </SideLink>
+          )}
+          {(user.role === 'owner' || user.role === 'manager') && (
+            <SideLink to="/devices" icon={<Fingerprint size={17} />}>
+              Attendance devices
             </SideLink>
           )}
           <SideLink to="/settings" icon={<Settings size={17} />}>

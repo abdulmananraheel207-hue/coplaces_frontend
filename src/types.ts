@@ -110,6 +110,8 @@ export interface MemberRow {
   endDate: string | null;
   notes: string;
   checkedIn: boolean;
+  /** Their number on the attendance devices, once they have one. */
+  devicePin: string | null;
 }
 
 export interface Assignment {
@@ -352,6 +354,7 @@ export interface StaffUser {
   active: boolean;
   lastLoginAt: string | null;
   locationIds: string[];
+  devicePin: string | null;
   tempPassword?: string;
 }
 
@@ -656,4 +659,60 @@ export interface FloorTemplate {
   name: string;
   createdAt: string;
   things: TemplateThing[];
+}
+
+/** A fingerprint machine at a location that sends punches to the server over ADMS. */
+export interface AttendanceDevice {
+  id: string;
+  locationId: string;
+  serialNumber: string;
+  name: string;
+  active: boolean;
+  lastSeenAt: string | null;
+  /** What the device reports about itself: firmware, user and log counts, its IP address. */
+  info: string;
+  createdAt: string;
+  online: boolean;
+  commandsWaiting: number;
+}
+
+export type PunchResult = 'checked_in' | 'checked_out' | 'duplicate' | 'ignored' | 'rejected' | 'unknown_pin';
+
+export interface DevicePunch {
+  id: string;
+  deviceId: string;
+  pin: string;
+  userId: string | null;
+  punchedAt: string;
+  result: PunchResult;
+  message: string;
+  name: string | null;
+  role: Role | null;
+}
+
+export interface DevicePerson {
+  userId: string;
+  name: string;
+  role: Role;
+  pin: string;
+}
+
+export interface DeviceCommand {
+  id: number;
+  command: string;
+  status: 'pending' | 'sent' | 'done' | 'failed';
+  returnCode: number | null;
+  sentAt: string | null;
+  doneAt: string | null;
+  createdAt: string;
+}
+
+export interface StaffAttendanceRow {
+  id: string;
+  userId: string;
+  name: string;
+  role: Role;
+  checkInAt: string;
+  checkOutAt: string | null;
+  minutes: number | null;
 }

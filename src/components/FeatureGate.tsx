@@ -2,7 +2,7 @@ import type { ReactNode } from 'react';
 import { useAuth, useFeature } from '../auth';
 import { can } from '../lib/permissions';
 import { FEATURE_LABELS } from '../lib/features';
-import type { FeatureKey, PermissionKey } from '../types';
+import type { FeatureKey, PermissionKey, Role } from '../types';
 import { Empty, PageHeader } from './ui';
 
 /** Renders its children only when the organization's package includes the feature. */
@@ -22,6 +22,18 @@ export function RequireFeature({ feature, children }: { feature: FeatureKey; chi
             : `Your coworking space's package does not include ${FEATURE_LABELS[feature].toLowerCase()}. Ask the owner about upgrading.`
         }
       />
+    </>
+  );
+}
+
+/** Renders its children only for the given roles, e.g. pages that the API keeps to owners and managers. */
+export function RequireRole({ roles, children }: { roles: Role[]; children: ReactNode }) {
+  const { user } = useAuth();
+  if (user && roles.includes(user.role)) return <>{children}</>;
+  return (
+    <>
+      <PageHeader title="No access" />
+      <Empty title="You do not have access to this" hint="Only the owner and managers can see this page." />
     </>
   );
 }

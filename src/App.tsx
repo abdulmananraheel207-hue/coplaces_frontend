@@ -1,7 +1,7 @@
 import { lazy, Suspense } from 'react';
 import { Navigate, Route, Routes, useLocation as useRoute } from 'react-router';
 import { isStaff, useAuth } from './auth';
-import { RequireFeature, RequirePermission } from './components/FeatureGate';
+import { RequireFeature, RequirePermission, RequireRole } from './components/FeatureGate';
 import { InvoiceView } from './components/InvoiceView';
 import { MemberShell, PlatformShell, StaffShell } from './components/Layout';
 import { Button, Empty, Loading, PageHeader, Section } from './components/ui';
@@ -18,6 +18,7 @@ import MemberVisitors from './pages/member/Visitors';
 import Announcements from './pages/staff/Announcements';
 import Bookings from './pages/staff/Bookings';
 import Contracts from './pages/staff/Contracts';
+import Devices from './pages/staff/Devices';
 import Maintenance from './pages/staff/Maintenance';
 import ShiftTemplates from './pages/staff/ShiftTemplates';
 import SpaceScan from './pages/SpaceScan';
@@ -128,6 +129,14 @@ function StaffRoutes() {
             <RequirePermission permission="maintenance">
               <Maintenance />
             </RequirePermission>
+          }
+        />
+        <Route
+          path="devices"
+          element={
+            <RequireRole roles={['owner', 'manager']}>
+              <Devices />
+            </RequireRole>
           }
         />
         <Route path="s/:id" element={<SpaceScan />} />
