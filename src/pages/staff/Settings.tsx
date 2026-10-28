@@ -58,7 +58,7 @@ function LocationForm({ initial, onDone }: { initial?: Location; onDone: () => v
     currency: initial?.currency ?? 'PKR',
     openTime: initial?.openTime ?? '08:00',
     closeTime: initial?.closeTime ?? '20:00',
-    tax: String((initial?.taxRateBps ?? 0) / 100),
+    tax: initial?.taxRateBps ? String(initial.taxRateBps / 100) : '',
   });
   const [closed, setClosed] = useState<string[]>(initial?.closedWeekdays ? initial.closedWeekdays.split(',') : []);
   const set = (k: keyof typeof v, val: string) => setV((x) => ({ ...x, [k]: val }));
@@ -105,8 +105,8 @@ function LocationForm({ initial, onDone }: { initial?: Location; onDone: () => v
         <Field label="Closes">
           <Input type="time" required value={v.closeTime} onChange={(e) => set('closeTime', e.target.value)} />
         </Field>
-        <Field label="Tax rate on invoices (%)">
-          <Input type="number" step="0.01" min={0} max={100} value={v.tax} onChange={(e) => set('tax', e.target.value)} />
+        <Field label="Sales tax on invoices (%)" hint="For example 13 or 16. Leave empty for no sales tax.">
+          <Input type="number" step="0.01" min={0} max={100} placeholder="No tax" value={v.tax} onChange={(e) => set('tax', e.target.value)} />
         </Field>
       </div>
       <fieldset>
@@ -486,7 +486,7 @@ export default function Settings() {
                         </td>
                         <td>{l.timezone}</td>
                         <td>{l.currency}</td>
-                        <td className="r">{(l.taxRateBps / 100).toFixed(2)}%</td>
+                        <td className="r">{l.taxRateBps ? `${(l.taxRateBps / 100).toFixed(2)}%` : 'None'}</td>
                         <td className="r">
                           <Button small variant="ghost" onClick={() => setEditing(l)}>
                             Edit

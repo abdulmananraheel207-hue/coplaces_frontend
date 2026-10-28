@@ -118,7 +118,7 @@ import {
   type Thing,
 } from './editorModel';
 import { GLASS, LabelOverlay, STAGE_BG } from './Labels';
-import { floorKey, floorLabel, floorMark, labelSpecs, layoutFloors, stackPlan } from './layout';
+import { compareFloors, floorKey, floorLabel, floorMark, labelSpecs, layoutFloors, stackPlan } from './layout';
 import PlanImport, { type Imported } from './PlanImport';
 import type { EditApi, Underlay } from './Scene';
 import { Boundary } from './SpaceViewer';
@@ -187,7 +187,6 @@ const ICONS: Record<string, LucideIcon> = {
   'object:label': Type,
 };
 
-const collator = new Intl.Collator('en', { numeric: true });
 const EDIT_PAD = 3;
 
 /** A text box that commits when you leave it or press Enter, so one edit is one step in the undo history. */
@@ -248,6 +247,8 @@ export default function FloorPlanEditor({
   currency,
   resources,
   objects,
+  floors: savedFloors = [],
+  floorLimit = null,
   onClose,
 }: {
   locationId: string;
@@ -255,12 +256,16 @@ export default function FloorPlanEditor({
   currency: string;
   resources: Resource[];
   objects: FloorObject[];
+  /** Floors the owner has named, even if nothing is on them yet. */
+  floors?: string[];
+  /** How many floors the package allows; null is unlimited. */
+  floorLimit?: number | null;
   onClose: () => void;
 }) {
   const toast = useToast();
   const refresh = useRefresh();
 
-  const [start] = useState(() => startDraft(resources, objects));
+  const [start] = useState(() => startDraft(resources, objects, savedFloors));
   const [hist, setHist] = useState(() => ({ past: [] as Draft[], present: start.draft, future: [] as Draft[] }));
   const draft = hist.present;
   const draftRef = useRef(draft);
@@ -276,7 +281,7 @@ export default function FloorPlanEditor({
 
   // A location with nothing in it yet still gets a first floor to build on.
   const floorList = (d: Draft) => {
-    const all = [...new Set(floorsOf(d))].sort((a, b) => collator.compare(a || '0', b || '0'));
+    const all = [...new Set(floorsOf(d))].sort(compareFloors);
     return all.length ? all : ['1'];
   };
   const floors = useMemo(() => floorList(draft), [draft]);
@@ -615,7 +620,7 @@ export default function FloorPlanEditor({
     mutationFn: () => api.put('/floor-plan', body),
     onSuccess: () => {
       toast.ok('Floor plan saved');
-      void refresh('resources', 'floor-objects', 'schedule', 'dashboard', 'assignments');
+      void refresh('resources', 'floors', 'floor-objects', 'schedule', 'dashboard', 'assignments');
       onClose();
     },
   });
@@ -710,7 +715,7 @@ export default function FloorPlanEditor({
                 {floorMark(f)}
               </button>
             ))}
-            <button type="button" aria-label="Add a floor" title="Add a floor" onClick={() => setAddingFloor(true)} className="grid size-9 place-items-center rounded-full border border-dashed border-white/50 text-white/90 hover:bg-white/15">
+            <button type="button" aria-label="Add a floor" title="Add a floor" onClick={() => (floorLimit !== null && floors.length >= floorLimit ? setNotice(`Your package allows ${floorLimit} floor${floorLimit === 1 ? '' : 's'}. Ask Coplaces about upgrading to add more.`) : setAddingFloor(true))} className="grid size-9 place-items-center rounded-full border border-dashed border-white/50 text-white/90 hover:bg-white/15">
               <Plus size={16} aria-hidden />
             </button>
           </div>

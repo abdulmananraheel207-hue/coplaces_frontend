@@ -15,6 +15,10 @@ export const useResources = (locationId: string) =>
 export const useFloorObjects = (locationId: string, enabled = true) =>
   useQuery({ queryKey: ['floor-objects', locationId], queryFn: () => api.get<FloorObject[]>('/floor-plan/objects', { locationId }), enabled });
 
+/** The floors a location has, named or in use, and how many the package allows (null is unlimited). */
+export const useFloors = (locationId: string) =>
+  useQuery({ queryKey: ['floors', locationId], queryFn: () => api.get<{ floors: string[]; limit: number | null }>('/floors', { locationId }) });
+
 export const usePresent = (locationId: string) =>
   useQuery({
     queryKey: ['attendance', locationId, 'open'],

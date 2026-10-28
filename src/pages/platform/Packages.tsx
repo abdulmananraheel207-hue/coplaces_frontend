@@ -26,6 +26,7 @@ function PackageForm({ initial, onDone }: { initial?: PackageRow; onDone: () => 
   });
   const [features, setFeatures] = useState<FeatureKey[]>(initial?.features ?? []);
   const [locLimit, setLocLimit] = useState(initial?.maxLocations != null ? String(initial.maxLocations) : '');
+  const [floorLimit, setFloorLimit] = useState(initial?.maxFloors != null ? String(initial.maxFloors) : '');
   const [memberLimit, setMemberLimit] = useState(initial?.maxMembers != null ? String(initial.maxMembers) : '');
   const defs = catalog.data?.features ?? [];
 
@@ -68,6 +69,7 @@ function PackageForm({ initial, onDone }: { initial?: PackageRow; onDone: () => 
         priceCents: cents,
         features,
         maxLocations: limit(locLimit, 'Locations'),
+        maxFloors: limit(floorLimit, 'Floors'),
         maxMembers: limit(memberLimit, 'Members'),
         active: v.active,
       };
@@ -130,6 +132,9 @@ function PackageForm({ initial, onDone }: { initial?: PackageRow; onDone: () => 
         <div className="grid gap-3 sm:grid-cols-2">
           <Field label="Locations" hint="Leave empty for no limit.">
             <Input type="number" min={1} value={locLimit} placeholder="No limit" onChange={(e) => setLocLimit(e.target.value)} />
+          </Field>
+          <Field label="Floors per location" hint="How many floors an owner can make. Leave empty for unlimited.">
+            <Input type="number" min={1} value={floorLimit} placeholder="Unlimited" onChange={(e) => setFloorLimit(e.target.value)} />
           </Field>
           <Field label="Members" hint="Everyone except cancelled members counts.">
             <Input type="number" min={1} value={memberLimit} placeholder="No limit" onChange={(e) => setMemberLimit(e.target.value)} />
@@ -211,6 +216,7 @@ export default function Packages() {
                   </td>
                   <td className="whitespace-nowrap text-sm">
                     {p.maxLocations ?? 'Unlimited'} {p.maxLocations === 1 ? 'location' : 'locations'}
+                    <span className="block text-slate">{p.maxFloors ? `${p.maxFloors} ${p.maxFloors === 1 ? 'floor' : 'floors'} each` : 'Unlimited floors'}</span>
                     <span className="block text-slate">{p.maxMembers ? `${p.maxMembers} members` : 'Unlimited members'}</span>
                   </td>
                   <td className="r">{p.tenants}</td>

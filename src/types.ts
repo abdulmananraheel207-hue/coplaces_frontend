@@ -429,6 +429,7 @@ export interface OrgInfo {
   packageName: string;
   features: FeatureKey[];
   maxLocations: number | null;
+  maxFloors: number | null;
   maxMembers: number | null;
   periodEnd: string;
   expired: boolean;
@@ -451,6 +452,7 @@ export interface PackageRow {
   priceCents: number;
   features: FeatureKey[];
   maxLocations: number | null;
+  maxFloors: number | null;
   maxMembers: number | null;
   active: boolean;
   tenants: number;
