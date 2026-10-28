@@ -1,0 +1,312 @@
+@import '@fontsource-variable/archivo/wdth.css';
+@import '@fontsource-variable/public-sans/index.css';
+@import 'tailwindcss';
+
+@theme {
+  --font-display: 'Archivo Variable', 'Arial Narrow', sans-serif;
+  --font-sans: 'Public Sans Variable', system-ui, sans-serif;
+
+  --color-ink: #14263f;
+  --color-ink-2: #1f3756;
+  --color-ink-3: #0e1c30;
+  --color-plaster: rgb(255 255 255 / 0.32);
+  --color-mist: rgb(255 255 255 / 0.66);
+  --color-paper: rgb(255 255 255 / 0.5);
+  --color-line: rgb(44 62 140 / 0.1);
+  --color-line-strong: rgb(44 62 140 / 0.22);
+  --color-slate: #3f506b;
+  --color-signal: #f6c324;
+  --color-signal-deep: #e0ae0f;
+  --color-ok: #0f7b5f;
+  --color-ok-wash: rgb(15 123 95 / 0.16);
+  --color-busy: #b8381a;
+  --color-busy-wash: rgb(184 56 26 / 0.14);
+  --color-hold: #7a5a00;
+  --color-hold-wash: rgb(246 195 36 / 0.3);
+  --color-mine: #2a55c7;
+  --color-mine-wash: rgb(42 85 199 / 0.15);
+
+  --radius-card: 14px;
+  --shadow-card: 0 1px 2px rgb(16 24 40 / 0.04), 0 2px 6px -2px rgb(16 24 40 / 0.06);
+  --shadow-lift: 0 2px 4px rgb(16 24 40 / 0.05), 0 12px 28px -8px rgb(16 24 40 / 0.16);
+}
+
+@layer base {
+  html {
+    font-size: 15px;
+    -webkit-text-size-adjust: 100%;
+  }
+  body {
+    font-family: var(--font-sans);
+    background: var(--color-plaster);
+    color: var(--color-ink);
+    line-height: 1.5;
+  }
+  ::selection {
+    background: rgb(246 195 36 / 0.45);
+  }
+  :focus-visible {
+    outline: 2px solid var(--color-ink);
+    outline-offset: 2px;
+    border-radius: 6px;
+  }
+  .on-ink :focus-visible {
+    outline-color: var(--color-signal);
+  }
+  button {
+    cursor: pointer;
+  }
+  button:disabled {
+    cursor: not-allowed;
+  }
+}
+
+@layer components {
+  /* Headings and names read like building signage: wide, heavy Archivo. */
+  .display {
+    font-family: var(--font-display);
+    font-stretch: 106%;
+    font-weight: 700;
+    letter-spacing: -0.022em;
+    line-height: 1.1;
+  }
+  .display-sm {
+    font-family: var(--font-display);
+    font-stretch: 102%;
+    font-weight: 650;
+    letter-spacing: -0.012em;
+    line-height: 1.2;
+  }
+
+  /* A white surface on the grey canvas: lists, tables, panels. */
+  .surface {
+    background: var(--color-paper);
+    border: 1px solid var(--color-line);
+    border-radius: var(--radius-card);
+    box-shadow: var(--shadow-card);
+  }
+  .surface-table {
+    overflow-x: auto;
+    background: var(--color-paper);
+    border: 1px solid var(--color-line);
+    border-radius: var(--radius-card);
+    box-shadow: var(--shadow-card);
+  }
+
+  .tbl {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 14px;
+  }
+  .tbl th {
+    text-align: left;
+    font-weight: 600;
+    font-size: 12.5px;
+    color: var(--color-slate);
+    padding: 10px 14px;
+    background: var(--color-mist);
+    border-bottom: 1px solid var(--color-line);
+    white-space: nowrap;
+  }
+  .tbl td {
+    padding: 12px 14px;
+    border-bottom: 1px solid var(--color-line);
+    vertical-align: middle;
+  }
+  .tbl tbody tr:last-child td {
+    border-bottom: 0;
+  }
+  .tbl tbody tr {
+    transition: background-color 120ms;
+  }
+  .tbl tbody tr:hover td {
+    background: #f7f9fc;
+  }
+  .tbl .r {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+  .num {
+    font-variant-numeric: tabular-nums;
+  }
+
+  .hatch {
+    background-image: repeating-linear-gradient(135deg, rgb(20 38 63 / 0.14) 0 3px, transparent 3px 8px);
+  }
+
+  dialog {
+    border: 0;
+    padding: 0;
+    background: transparent;
+    max-width: 100vw;
+    max-height: 100dvh;
+    margin: auto;
+    color: inherit;
+  }
+  dialog::backdrop {
+    background: rgb(14 28 48 / 0.45);
+    backdrop-filter: blur(3px);
+  }
+  dialog[open] {
+    animation: pop 160ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  }
+  @keyframes pop {
+    from {
+      opacity: 0;
+      transform: translateY(8px) scale(0.985);
+    }
+  }
+}
+
+/* A line on the login board changing, like a departures sign turning over. */
+@keyframes flip {
+  from {
+    opacity: 0;
+    transform: perspective(300px) rotateX(-80deg);
+  }
+}
+.flip {
+  transform-origin: 50% 0;
+  animation: flip 420ms cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+
+/* A page settling in after you navigate: its blocks rise one after another, then table rows follow. No fill after the
+   animation ends, so sticky and fixed children behave normally. */
+@keyframes page-in {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+}
+@keyframes row-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+.page-enter > * {
+  animation: page-in 420ms cubic-bezier(0.2, 0.7, 0.2, 1) backwards;
+}
+.page-enter > :nth-child(2) {
+  animation-delay: 70ms;
+}
+.page-enter > :nth-child(3) {
+  animation-delay: 140ms;
+}
+.page-enter > :nth-child(4) {
+  animation-delay: 210ms;
+}
+.page-enter > :nth-child(n + 5) {
+  animation-delay: 280ms;
+}
+.page-enter .tbl tbody tr {
+  animation: row-in 360ms cubic-bezier(0.2, 0.7, 0.2, 1) backwards;
+  animation-delay: 420ms;
+}
+.page-enter .tbl tbody tr:nth-child(1) {
+  animation-delay: 168ms;
+}
+.page-enter .tbl tbody tr:nth-child(2) {
+  animation-delay: 196ms;
+}
+.page-enter .tbl tbody tr:nth-child(3) {
+  animation-delay: 224ms;
+}
+.page-enter .tbl tbody tr:nth-child(4) {
+  animation-delay: 252ms;
+}
+.page-enter .tbl tbody tr:nth-child(5) {
+  animation-delay: 280ms;
+}
+.page-enter .tbl tbody tr:nth-child(6) {
+  animation-delay: 308ms;
+}
+.page-enter .tbl tbody tr:nth-child(7) {
+  animation-delay: 336ms;
+}
+.page-enter .tbl tbody tr:nth-child(8) {
+  animation-delay: 364ms;
+}
+.page-enter .tbl tbody tr:nth-child(9) {
+  animation-delay: 392ms;
+}
+.page-enter .tbl tbody tr:nth-child(10) {
+  animation-delay: 420ms;
+}
+.page-enter .tbl tbody tr:nth-child(11) {
+  animation-delay: 448ms;
+}
+.page-enter .tbl tbody tr:nth-child(12) {
+  animation-delay: 476ms;
+}
+
+/* Chart bars rise from the baseline and progress bars fill from the left. */
+@keyframes bar-rise {
+  from {
+    transform: scaleY(0);
+  }
+}
+.bar-rise {
+  transform-box: fill-box;
+  transform-origin: 50% 100%;
+  animation: bar-rise 700ms cubic-bezier(0.2, 0.8, 0.2, 1) backwards;
+}
+@keyframes bar-fill {
+  from {
+    width: 0;
+  }
+}
+.bar-fill {
+  animation: bar-fill 800ms cubic-bezier(0.2, 0.8, 0.2, 1) 200ms backwards;
+}
+
+/* Cards that answer the pointer. */
+.lift {
+  transition:
+    transform 180ms cubic-bezier(0.2, 0.7, 0.2, 1),
+    box-shadow 180ms;
+}
+.lift:hover {
+  transform: translateY(-3px);
+  box-shadow: var(--shadow-lift);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  dialog[open],
+  .flip,
+  .page-enter > *,
+  .page-enter .tbl tbody tr,
+  .bar-rise,
+  .bar-fill {
+    animation: none;
+  }
+  .lift:hover {
+    transform: none;
+  }
+}
+
+@media print {
+  /* A floor plan printed from the editor: only the sheet shows. */
+  body.printing-plan * {
+    visibility: hidden !important;
+  }
+  body.printing-plan .plan-print-sheet,
+  body.printing-plan .plan-print-sheet * {
+    visibility: visible !important;
+  }
+  body.printing-plan .plan-print-sheet {
+    position: fixed;
+    inset: 0;
+    margin: 0;
+    padding: 12mm;
+    border: 0;
+    border-radius: 0;
+    background: white;
+  }
+  .no-print {
+    display: none !important;
+  }
+  body {
+    background: white;
+  }
+}
