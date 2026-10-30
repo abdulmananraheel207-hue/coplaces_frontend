@@ -271,7 +271,7 @@ export function MemberShell() {
               Home
             </NavLink>
             <NavLink to="/book" className={link}>
-              Book a space
+              Request a room
             </NavLink>
             {visitors && (
               <NavLink to="/visitors" className={link}>

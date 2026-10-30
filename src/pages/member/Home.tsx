@@ -114,6 +114,12 @@ export default function MemberHome() {
         </div>
       )}
 
+      {s.amenityDueCents > 0 && (
+        <div className="mb-8 rounded-xl border border-signal-deep bg-hold-wash px-4 py-3 text-sm">
+          <strong>{money(s.amenityDueCents, s.currency)}</strong> to pay at the front desk for tea, coffee or food beyond your free amount.
+        </div>
+      )}
+
       <div className="grid gap-10 md:grid-cols-[minmax(0,1fr)_20rem]">
         <div className="space-y-9">
           <Section title="Today at the space">
@@ -134,9 +140,9 @@ export default function MemberHome() {
             )}
           </Section>
 
-          <Section title="Your upcoming bookings" aside={<Link to="/book" className="font-semibold text-ink underline underline-offset-2">Book a space</Link>}>
+          <Section title="Your upcoming bookings" aside={<Link to="/book" className="font-semibold text-ink underline underline-offset-2">Request a room</Link>}>
             {s.upcomingBookings.length === 0 ? (
-              <p className="text-sm text-slate">Nothing booked. Meeting rooms and hot desks are on the Book a space page.</p>
+              <p className="text-sm text-slate">Nothing booked. Your plan's desk shows here, and you can ask for a meeting room on the Request a room page.</p>
             ) : (
               <ul className="surface divide-y divide-line px-4">
                 {s.upcomingBookings.map((b) => (
@@ -197,6 +203,22 @@ export default function MemberHome() {
               <p className="text-sm text-slate">Your plan has no included meeting time. Rooms are charged by the hour and added to your next invoice.</p>
             )}
           </Section>
+
+          {s.amenities.length > 0 && (
+            <Section title="Free every day">
+              <ul className="surface divide-y divide-line px-4 text-sm">
+                {s.amenities.map((a) => (
+                  <li key={a.amenityId} className="flex items-baseline justify-between gap-3 py-2">
+                    <span className="font-semibold">{a.name}</span>
+                    <span className="num text-slate">
+                      {Math.min(a.usedToday, a.freePerDay)} of {a.freePerDay} used today
+                    </span>
+                  </li>
+                ))}
+              </ul>
+              <p className="mt-2 text-xs text-slate">After your free ones: {s.amenities.map((a) => `${a.name} ${money(a.priceCents, s.currency)}`).join(', ')} each.</p>
+            </Section>
+          )}
 
           <Section title="Your plan">
             {s.plan ? (

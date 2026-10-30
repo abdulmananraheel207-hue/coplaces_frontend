@@ -3,14 +3,16 @@ import { Link } from 'react-router';
 import { MoneyChart } from '../../components/MoneyChart';
 import { Bars } from '../../components/Bars';
 import { Button, ErrorNote, Loading, Section } from '../../components/ui';
-import { useFeature } from '../../auth';
+import { useAuth, useFeature } from '../../auth';
+import { CollectButton } from '../../components/Amenities';
+import { can } from '../../lib/permissions';
 import { downloadCsv, METHOD_LABEL, money, moneyWhole, titleCase } from '../../lib/format';
 import { depositRows } from '../../components/ContractPrint';
 import { fmtDate } from '../../lib/time';
 import type { FinanceReport } from '../../types';
 import { PERIOD_WORD, PeriodPicker, useFinancePeriod, useFinanceReport } from './Finance';
 
-export const INCOME_LABEL = { subscription: 'Memberships and plans', manual: 'Rooms, desks and other charges', kept_deposit: 'Security deposits we kept', advance: 'Advance rent from contracts' } as const;
+export const INCOME_LABEL = { subscription: 'Memberships and plans', manual: 'Rooms, desks and other charges', kept_deposit: 'Security deposits we kept', advance: 'Advance rent from contracts', amenities: 'Amenities (tea, coffee, food)' } as const;
 
 const MOVE_WORD = { received: 'Security deposit received', refunded: 'Security deposit returned', kept: 'Security deposit kept as income', advance: 'Advance received' } as const;
 
@@ -43,6 +45,7 @@ function Figure({ label, value, sub, tone, note }: { label: string; value: strin
 export default function FinanceOverview() {
   const { months, setMonths } = useFinancePeriod();
   const invoicing = useFeature('invoicing');
+  const { user } = useAuth();
   const q = useFinanceReport(months);
   if (q.isLoading) return <Loading />;
   if (q.error || !q.data) return <ErrorNote error={q.error} />;
@@ -88,6 +91,27 @@ export default function FinanceOverview() {
         />
         <Figure label="Still owed to you" value={moneyWhole(owedCents, cur)} sub={lateCount > 0 ? `${moneyWhole(lateCents, cur)} is overdue` : 'Nothing is overdue'} note={lateCount > 0 ? 'text-busy' : 'text-ok'} />
       </div>
+
+      {(r.amenities.owedCents > 0 || r.amenities.collectedCents > 0) && (
+        <Section title="Amenities to collect" aside={`${moneyWhole(r.amenities.collectedCents, cur)} collected in ${when}`}>
+          {r.amenities.owedBy.length === 0 ? (
+            <p className="text-sm text-slate">Nothing is owed for tea, coffee or food.</p>
+          ) : (
+            <ul className="surface divide-y divide-line px-4">
+              {r.amenities.owedBy.map((o) => (
+                <li key={o.memberId} className="flex items-center justify-between gap-3 py-2 text-sm">
+                  <span className="font-semibold">{o.name}</span>
+                  <span className="flex items-center gap-3">
+                    <span className="num font-semibold">{money(o.owedCents, cur)}</span>
+                    {(can(user, 'front_desk') || can(user, 'invoices')) && <CollectButton memberId={o.memberId} label="Mark collected" />}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+          <p className="mt-2 text-xs text-slate">Beyond each member's free amount for the day. It counts as income once you mark it collected.</p>
+        </Section>
+      )}
 
       {(r.deposits.heldCents > 0 || r.deposits.movements.length > 0) && (
         <Section

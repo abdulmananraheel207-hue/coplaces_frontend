@@ -10,8 +10,8 @@ import { usePlans, useRefresh, useResources, useShifts } from '../../lib/queries
 import { toMinutes } from '../../lib/time';
 import type { Plan, Resource, ResourceKind, ShiftTemplate } from '../../types';
 
-/** Only rooms and hot desks are booked, so only they can have shifts. */
-const BOOKABLE: ResourceKind[] = ['room', 'corporate_room', 'hot_desk'];
+/** Rooms, desks and offices can have shifts. Lockers and parking cannot. */
+const BOOKABLE: ResourceKind[] = ['room', 'corporate_room', 'hot_desk', 'dedicated_desk', 'office'];
 
 function PlanForm({ initial, onDone }: { initial?: Plan; onDone: () => void }) {
   const loc = useLocation();

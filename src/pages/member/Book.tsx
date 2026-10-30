@@ -3,20 +3,19 @@ import { useMutation, useQuery } from '@tanstack/react-query';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { api, errorMessage } from '../../api';
 import { useLocation } from '../../auth';
-import { BookingModal, type BookingDraft } from '../../components/BookingModal';
+import { MyRequests, RoomRequestModal, type RequestDraft } from '../../components/RoomRequest';
 import { AmenityFilter, amenitiesAmong, withAmenities } from '../../components/AmenityFilter';
 import { ItemDetail } from '../../components/ItemDetail';
 import { ReportProblem } from '../../components/ReportProblem';
-import { DeskTile } from '../../components/Plaque';
 import { RoomTimeline } from '../../components/RoomTimeline';
 import { isRoomKind } from '../../lib/catalogue';
 import { SpaceBoard, use3d } from '../../components/SpaceBoard';
 import { defaultViewTime, ViewAtTime } from '../../components/ViewAtTime';
 import { useToast } from '../../components/toast';
-import { Button, Empty, Input, Loading, Modal, PageHeader, Section, Segmented } from '../../components/ui';
+import { Button, Empty, Input, Loading, Modal, PageHeader, Section } from '../../components/ui';
 import { KIND_LABEL, money } from '../../lib/format';
 import { useRefresh, useResources, useSchedule } from '../../lib/queries';
-import { buildSpaceItems, deskState } from '../../lib/spaceState';
+import { buildSpaceItems } from '../../lib/spaceState';
 import { addDays, fmtLongDay, fmtTime, todayIn, zonedToUtc } from '../../lib/time';
 import type { Booking } from '../../types';
 
@@ -26,8 +25,7 @@ export default function Book() {
   const refresh = useRefresh();
   const today = todayIn(loc.timezone);
   const [date, setDate] = useState(today);
-  const [tab, setTab] = useState<'room' | 'desk'>('room');
-  const [draft, setDraft] = useState<BookingDraft | null>(null);
+  const [draft, setDraft] = useState<RequestDraft | null>(null);
   const [mineId, setMineId] = useState<string | null>(null);
 
   const schedule = useSchedule(loc.id, date);
@@ -61,13 +59,12 @@ export default function Book() {
   const [needs, setNeeds] = useState<string[]>([]);
   const [reporting, setReporting] = useState<string | null>(null);
   const roomSchedule = withAmenities(schedule.data, needs);
-  const desks = resources.filter((r) => r.kind === 'hot_desk');
   const myBookings = (mine.data ?? []).filter((b) => b.status === 'confirmed');
   const selected = myBookings.find((b) => b.id === mineId) ?? null;
 
   return (
     <>
-      <PageHeader title="Book a space" sub={fmtLongDay(date)}>
+      <PageHeader title="Request a room" sub={`${fmtLongDay(date)}. Rooms are approved by the owner. Desks and offices come with your plan.`}>
         <div className="flex items-center gap-1">
           <Button aria-label="Previous day" disabled={date <= today} onClick={() => setDate(addDays(date, -1))}>
             <ChevronLeft size={16} />
@@ -81,12 +78,12 @@ export default function Book() {
 
       {schedule.data?.closed && (
         <p role="status" className="mb-6 rounded-xl border border-signal-deep/30 bg-hold-wash px-4 py-2.5 text-sm">
-          <strong>{schedule.data.closed}.</strong> Nothing can be booked on this day, pick another.
+          <strong>{schedule.data.closed}.</strong> Rooms cannot be requested on this day, pick another.
         </p>
       )}
 
       {show3d && (
-        <Section className="mb-9" title="Floor view" aside="Pick a free room or desk to book it">
+        <Section className="mb-9" title="Floor view" aside="Pick a room to ask for it">
           <SpaceBoard
             items={items}
             selectedId={spaceId}
@@ -94,9 +91,9 @@ export default function Book() {
             aside={<ViewAtTime openTime={loc.openTime} closeTime={loc.closeTime} value={viewTime} onChange={setViewTime} />}
             renderDetail={(item) => (
               <ItemDetail item={item} onClose={() => setSpaceId(null)}>
-                {item.bookable && item.tone === 'ok' && !schedule.data?.closed && (
-                  <Button variant="primary" onClick={() => setDraft({ resourceId: item.id, date, startTime: isRoomKind(item.kind) ? viewTime : undefined })}>
-                    {isRoomKind(item.kind) ? `Book at ${viewTime}` : 'Book this desk'}
+                {isRoomKind(item.kind) && item.bookable && item.tone === 'ok' && !schedule.data?.closed && (
+                  <Button variant="primary" onClick={() => setDraft({ resourceId: item.id, date, startTime: viewTime })}>
+                    Request at {viewTime}
                   </Button>
                 )}
                 {item.tone === 'mine' && item.bookingId && <Button onClick={() => setMineId(item.bookingId!)}>Manage my booking</Button>}
@@ -109,22 +106,10 @@ export default function Book() {
         </Section>
       )}
 
-      <div className="mb-6">
-        <Segmented
-          label="What to book"
-          value={tab}
-          onChange={setTab}
-          options={[
-            { value: 'room', label: 'Rooms' },
-            { value: 'desk', label: 'Hot desks' },
-          ]}
-        />
-      </div>
-
       {schedule.isLoading ? (
         <Loading />
-      ) : tab === 'room' ? (
-        <Section title="Meeting and corporate rooms" aside="Click open time to book">
+      ) : (
+        <Section title="Meeting, board and training rooms" aside="Click an open time to ask for it">
           {schedule.data && resources.some((r) => isRoomKind(r.kind)) ? (
             <>
               <AmenityFilter options={amenitiesAmong(resources)} value={needs} onChange={setNeeds} />
@@ -135,62 +120,25 @@ export default function Book() {
               />
               <p className="mt-2 flex flex-wrap gap-x-5 text-xs text-slate">
                 <span className="flex items-center gap-1.5"><span className="inline-block size-3 bg-mine" /> Your booking</span>
-                <span className="flex items-center gap-1.5"><span className="hatch inline-block size-3 border border-ink/40" /> Booked by someone else</span>
+                <span className="flex items-center gap-1.5"><span className="hatch inline-block size-3 border border-ink/40" /> Already booked</span>
               </p>
               <p className="mt-3 text-sm text-slate">
                 Rates: {resources.filter((r) => isRoomKind(r.kind) && r.status === 'available').map((r) => `${r.name} ${money(r.hourlyRateCents, loc.currency)}/hour`).join(', ')}.
               </p>
             </>
           ) : (
-            <Empty title="No meeting rooms to book" />
-          )}
-        </Section>
-      ) : (
-        <Section title="Hot desks" aside={`Showing ${viewTime}. Book the whole day, or from and until.`}>
-          {desks.length === 0 ? (
-            <Empty title="No hot desks at this location" />
-          ) : (
-            <>
-              <div className="mb-3">
-                <ViewAtTime openTime={loc.openTime} closeTime={loc.closeTime} value={viewTime} onChange={setViewTime} />
-              </div>
-              <div className="flex flex-wrap gap-1.5">
-                {desks.map((d) => {
-                  const st = deskState(d, schedule.data!, zonedToUtc(date, viewTime, loc.timezone));
-                  const out = d.status !== 'available';
-                  const taken = st.tone === 'busy';
-                  const later = schedule.data!.bookings.filter((x) => x.resourceId === d.id && !x.allDay);
-                  return (
-                    <DeskTile
-                      key={d.id}
-                      label={d.name.split(' ').pop() ?? d.name}
-                      tone={out ? 'out' : st.tone === 'mine' ? 'mine' : taken ? 'taken' : 'free'}
-                      title={
-                        out
-                          ? `${d.name}, out of service`
-                          : st.tone === 'mine'
-                            ? `${d.name}, yours. Click to manage`
-                            : taken
-                              ? `${d.name}, taken`
-                              : `${d.name}, free${later.length ? ` (booked ${later.map((x) => `${fmtTime(x.startsAt, loc.timezone)}–${fmtTime(x.endsAt, loc.timezone)}`).join(', ')})` : ''}. Click to book`
-                      }
-                      onClick={out || taken ? undefined : st.bookingId ? () => setMineId(st.bookingId!) : schedule.data?.closed ? undefined : () => setDraft({ resourceId: d.id, date })}
-                    />
-                  );
-                })}
-              </div>
-              <p className="mt-2 flex flex-wrap gap-x-5 text-xs text-slate">
-                <span className="flex items-center gap-1.5"><span className="inline-block size-3 border border-ink/50 bg-paper" /> Free</span>
-                <span className="flex items-center gap-1.5"><span className="inline-block size-3 bg-mine" /> Yours</span>
-                <span className="flex items-center gap-1.5"><span className="inline-block size-3 bg-ink" /> Taken</span>
-              </p>
-            </>
+            <Empty title="No meeting rooms to ask for" />
           )}
         </Section>
       )}
 
+      <Section className="mt-9" title="Your requests" aside="Waiting for the owner, or decided">
+        <MyRequests />
+        <p className="mt-2 text-sm text-slate">Ask for a room above. The owner approves or rejects it, and you see the answer here.</p>
+      </Section>
+
       {myBookings.length > 0 && (
-        <Section className="mt-9" title="Your bookings this day">
+        <Section className="mt-9" title="Your bookings this day" aside="Your plan's desk, and rooms the owner approved">
           <ul className="surface divide-y divide-line px-4">
             {myBookings.map((b) => (
               <li key={b.id} className="flex items-center justify-between gap-3 py-2 text-sm">
@@ -208,7 +156,7 @@ export default function Book() {
       )}
 
       <ReportProblem open={reporting !== null} onClose={() => setReporting(null)} resourceId={reporting ?? undefined} />
-      <BookingModal open={draft !== null} onClose={() => setDraft(null)} resources={resources} draft={draft ?? {}} staff={false} />
+      <RoomRequestModal open={draft !== null} onClose={() => setDraft(null)} resources={resources} draft={draft ?? {}} />
 
       <Modal open={selected !== null} onClose={() => setMineId(null)} title="Your booking">
         {selected && (

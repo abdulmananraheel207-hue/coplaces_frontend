@@ -107,6 +107,17 @@ export interface MemberRow {
   planName: string | null;
   /** Set for members created from a company contract: the company they come in through. */
   contractCompany: string | null;
+  /** The current period of their plan with shifts, first day to last. */
+  planStart: string | null;
+  planEnd: string | null;
+  advanceCents: number;
+  advanceUsedCents: number;
+  advanceReceivedAt: string | null;
+  depositCents: number;
+  depositStatus: DepositStatus;
+  depositReturnedCents: number;
+  /** Free meeting room time each month, in credit hours. Two credit hours are one hour. */
+  meetingCredits: number;
   status: MemberStatus;
   startDate: string;
   endDate: string | null;
@@ -129,6 +140,13 @@ export interface Assignment {
 
 export interface MemberDetail extends Omit<MemberRow, 'planName' | 'checkedIn'> {
   plan: Plan | null;
+  shifts: { id: string; name: string; startTime: string; endTime: string; priceCents: number | null }[];
+  /** Every movement of their advance and security deposit, oldest first. */
+  moneyEntries: { id: string; kind: 'advance' | 'received' | 'refunded' | 'kept'; amountCents: number; method: PaymentMethod | null; reference: string; occurredAt: string }[];
+  desks: { id: string; name: string; kind: ResourceKind }[];
+  /** What they get free each day, with how many they have had today. */
+  amenities: AmenityAllowance[];
+  amenityOwedCents: number;
   assignments: Assignment[];
   balanceDueCents: number;
   overdueCents: number;
@@ -408,10 +426,39 @@ export interface FinanceReport {
   expensesByCategory: { category: string; amountCents: number }[];
   paymentsByMethod: { method: string; amountCents: number }[];
   receivablesAging: Record<'current' | 'days1to30' | 'days31to60' | 'days61plus', { count: number; amountCents: number }>;
+  amenities: { owedCents: number; collectedCents: number; owedBy: { memberId: string; name: string; owedCents: number }[] };
   deposits: { heldCents: number; receivedCents: number; refundedCents: number; keptCents: number; advanceCents: number; movements: DepositMovement[] };
 }
 
-export type IncomeKind = 'subscription' | 'manual' | 'kept_deposit' | 'advance';
+export type IncomeKind = 'subscription' | 'manual' | 'kept_deposit' | 'advance' | 'amenities';
+
+/** Tea, coffee or the like that the owner hands out, charged by the price beyond a member's free amount. */
+export interface Amenity {
+  id: string;
+  locationId: string;
+  name: string;
+  priceCents: number;
+}
+
+export interface AmenityAllowance {
+  amenityId: string;
+  name: string;
+  priceCents: number;
+  freePerDay: number;
+  usedToday: number;
+}
+
+export interface AmenityOrder {
+  id: string;
+  memberId: string;
+  memberName: string;
+  name: string;
+  date: string;
+  quantity: number;
+  freeQuantity: number;
+  chargeCents: number;
+  collectedAt: string | null;
+}
 
 export interface MemberSummary {
   member: { id: string; company: string; status: MemberStatus; locationId: string; locationName: string };
@@ -420,6 +467,8 @@ export interface MemberSummary {
   today: string;
   plan: Plan | null;
   meetingMinutes: { included: number; used: number };
+  amenities: AmenityAllowance[];
+  amenityDueCents: number;
   checkedIn: { id: string; checkInAt: string } | null;
   upcomingBookings: Booking[];
   openInvoices: InvoiceRow[];
@@ -760,4 +809,25 @@ export interface StaffAttendanceRow {
   checkInAt: string;
   checkOutAt: string | null;
   minutes: number | null;
+}
+
+/** A member's ask for a room, waiting for the owner. */
+export interface RoomRequest {
+  id: string;
+  locationId: string;
+  resourceId: string;
+  memberId: string;
+  date: string;
+  startTime: string;
+  endTime: string;
+  notes: string;
+  status: 'pending' | 'approved' | 'rejected' | 'cancelled' | 'taken';
+  reason: string;
+  bookingId: string | null;
+  memberName: string;
+  company: string;
+  resourceName: string;
+  resourceKind: ResourceKind;
+  /** Other people waiting for the same room at an overlapping time. */
+  ahead: number;
 }

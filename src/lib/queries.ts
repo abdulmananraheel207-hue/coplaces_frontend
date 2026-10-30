@@ -1,6 +1,6 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../api';
-import type { ShiftTemplate, Announcement, AttendanceRow, Booking, Dashboard, FloorObject, Holiday, Occupancy, Plan, Resource, Schedule, Visitor } from '../types';
+import type { Amenity, ShiftTemplate, Announcement, AttendanceRow, Booking, Dashboard, FloorObject, Holiday, Occupancy, Plan, Resource, Schedule, Visitor } from '../types';
 
 export const useDashboard = (locationId: string) =>
   useQuery({ queryKey: ['dashboard', locationId], queryFn: () => api.get<Dashboard>('/reports/dashboard', { locationId }), refetchInterval: 60_000 });
@@ -46,6 +46,10 @@ export const useOccupancy = (locationId: string, days: number, enabled = true) =
 /** The shifts of a location, for the booking form and for the page that manages them. With a member id, only the ones that member can use. */
 export const useShifts = (locationId: string, memberId?: string, enabled = true) =>
   useQuery({ queryKey: ['shifts', locationId, memberId ?? ''], queryFn: () => api.get<ShiftTemplate[]>('/shifts', { locationId, memberId }), enabled });
+
+/** The amenities a location offers (tea, coffee, food), for setup, the member forms and the front desk. */
+export const useAmenities = (locationId: string, enabled = true) =>
+  useQuery({ queryKey: ['amenities', locationId], queryFn: () => api.get<Amenity[]>('/amenities', { locationId }), enabled });
 
 export const usePlans = (locationId: string) =>
   useQuery({ queryKey: ['plans', locationId], queryFn: () => api.get<Plan[]>('/plans', { locationId }) });
