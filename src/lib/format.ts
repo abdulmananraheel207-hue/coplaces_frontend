@@ -10,6 +10,8 @@ function formatter(currency: string, fractionDigits: number) {
       currency,
       minimumFractionDigits: fractionDigits,
       maximumFractionDigits: fractionDigits,
+      // A small negative amount that rounds to nothing reads "Rs 0", never "-Rs 0".
+      signDisplay: 'negative',
     });
     formatters.set(key, f);
   }
@@ -22,11 +24,34 @@ export const money = (cents: number, currency: string) => formatter(currency, ce
 /** Whole-unit display for large dashboard figures. */
 export const moneyWhole = (cents: number, currency: string) => formatter(currency, 0).format(cents / 100);
 
-/** Parses user-typed money ("12", "12.5", "1,200.00") into cents, or null when invalid. */
+/** The largest amount anyone may type, in whole rupees or dollars. Anything bigger is a typing mistake. */
+export const MAX_MAJOR_UNITS = 100_000_000;
+
+/**
+ * Digits as some keyboards type them, turned into plain ones: full-width (０１２), Arabic-Indic (٠١٢) and the Urdu
+ * forms (۰۱۲), with their commas and decimal points.
+ */
+export function plainDigits(input: string) {
+  return input
+    .replace(/[０-９]/g, (c) => String(c.charCodeAt(0) - 0xff10))
+    .replace(/[٠-٩]/g, (c) => String(c.charCodeAt(0) - 0x0660))
+    .replace(/[۰-۹]/g, (c) => String(c.charCodeAt(0) - 0x06f0))
+    .replace(/[，٬،]/g, ',')
+    .replace(/[．٫]/g, '.');
+}
+
+/**
+ * Parses user-typed money ("12", "12.5", "1,200.00", "１２") into cents, or null when it is not an amount or is more
+ * than MAX_MAJOR_UNITS. Worked out in whole numbers, so no floating point rounding is involved.
+ */
 export function toCents(input: string): number | null {
-  const clean = input.replace(/[,\s]/g, '');
-  if (!/^\d+(\.\d{0,2})?$/.test(clean)) return null;
-  return Math.round(parseFloat(clean) * 100);
+  const clean = plainDigits(input).replace(/[,\s]/g, '');
+  const m = /^(\d+)(?:\.(\d{0,2}))?$/.exec(clean);
+  if (!m) return null;
+  const whole = Number(m[1]);
+  const cents = Number((m[2] ?? '').padEnd(2, '0'));
+  if (whole > MAX_MAJOR_UNITS || (whole === MAX_MAJOR_UNITS && cents > 0)) return null;
+  return whole * 100 + cents;
 }
 
 export const fromCents = (cents: number) => (cents / 100).toFixed(2);
