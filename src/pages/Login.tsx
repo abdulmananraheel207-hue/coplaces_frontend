@@ -7,7 +7,7 @@ import { Avatar, Button, ErrorNote, Field, Input } from '../components/ui';
 import { Plate } from '../components/Layout';
 import { STAGE_BG } from '../components/space3d/Labels';
 import { Showcase, TOUR } from '../components/space3d/Showcase';
-import { reducedMotion } from '../components/space3d/three-kit';
+import { reducedMotion } from '../lib/motion';
 
 const DEMO = [
   ['Platform admin', 'admin@coplaces.test'],

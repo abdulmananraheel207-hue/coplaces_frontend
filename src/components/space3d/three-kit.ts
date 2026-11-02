@@ -6,7 +6,7 @@ export const INK = '#14263f';
 export const SIGNAL = '#f6c324';
 export const PLATE = '#dde3ea';
 
-export const reducedMotion = () => typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+export { reducedMotion } from '../../lib/motion';
 
 // ---------------------------------------------------------------------------------------------
 // Geometry. Shared between every piece that has the same size, so a floor of desks is a handful of buffers.
