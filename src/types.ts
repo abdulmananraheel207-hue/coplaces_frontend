@@ -235,15 +235,12 @@ export interface ShiftTemplate {
   active: boolean;
 }
 
-/** Where a booking's price came from. */
+/** Where a booking's price came from: exactly the bases the server sends (backend services/bookings.ts). */
 export type PriceBasis =
   | { type: 'plan' }
   | { type: 'minutes'; freeMinutes: number; billableMinutes: number }
   | { type: 'shift'; name: string }
-  | { type: 'hourly'; rateCents: number }
-  | { type: 'daily'; rateCents: number }
-  | { type: 'dayshare'; rateCents: number }
-  | { type: 'rates' };
+  | { type: 'hourly'; rateCents: number };
 
 export interface Schedule {
   date: string;

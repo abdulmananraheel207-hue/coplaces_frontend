@@ -10,30 +10,7 @@ import type { Booking, PriceBasis, Resource } from '../types';
 import { MemberSelect } from './MemberSelect';
 import { Button, ErrorNote, Field, Input, Modal, Select, Textarea } from './ui';
 import { useToast } from './toast';
-
-/** The one line under the price that says where it came from. */
-function basisNote(b: PriceBasis | undefined, currency: string, staff: boolean) {
-  const who = staff ? "the member's" : 'your';
-  if (!b) return '';
-  switch (b.type) {
-    case 'plan':
-      return `Included in ${who} plan`;
-    case 'minutes':
-      return b.billableMinutes > 0
-        ? `${b.freeMinutes} min covered by ${who} included meeting minutes, the rest charged by the hour`
-        : `Covered by ${who} included meeting minutes`;
-    case 'shift':
-      return `${b.name} shift price (set in Shift templates)`;
-    case 'hourly':
-      return `${money(b.rateCents, currency)} an hour (set on the space)`;
-    case 'daily':
-      return `${money(b.rateCents, currency)} a day (set on the space)`;
-    case 'dayshare':
-      return `A share of the day price, ${money(b.rateCents, currency)} a day (set on the space)`;
-    default:
-      return "Worked out from the space's rates, such as peak hours, half-day or day pass (set on the space)";
-  }
-}
+import { basisNote } from '../lib/priceBasis';
 
 export interface BookingDraft {
   resourceId?: string;
