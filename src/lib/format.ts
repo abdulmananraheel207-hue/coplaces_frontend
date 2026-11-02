@@ -62,12 +62,23 @@ export const METHOD_LABEL = {
 
 export const titleCase = (s: string) => s.charAt(0).toUpperCase() + s.slice(1).replace(/_/g, ' ');
 
-export function downloadCsv(filename: string, rows: (string | number)[][]) {
-  const esc = (v: string | number) => {
-    const s = String(v);
-    return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
-  };
-  const blob = new Blob([rows.map((r) => r.map(esc).join(',')).join('\n')], { type: 'text/csv;charset=utf-8' });
+/** A plain number such as "-1500.00" can never run as a formula, so it is left alone and stays a number in the spreadsheet. */
+const PLAIN_NUMBER = /^-?\d+(\.\d+)?$/;
+/** What a spreadsheet treats as the start of a formula. */
+const FORMULA_START = /^[=+\-@\t\r]/;
+
+/** One cell, safe to open in Excel or Sheets: anything that could start a formula is turned into text, and quotes are escaped. */
+export function csvCell(v: string | number | null | undefined) {
+  let s = v === null || v === undefined ? '' : String(v);
+  if (typeof v === 'string' && FORMULA_START.test(s) && !PLAIN_NUMBER.test(s)) s = `'${s}`;
+  return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+}
+
+/** The file's text. It starts with a byte order mark so Excel reads Urdu and other non-Latin text as UTF-8. */
+export const toCsv = (rows: (string | number | null | undefined)[][]) => `﻿${rows.map((r) => r.map(csvCell).join(',')).join('\r\n')}`;
+
+export function downloadCsv(filename: string, rows: (string | number | null | undefined)[][]) {
+  const blob = new Blob([toCsv(rows)], { type: 'text/csv;charset=utf-8' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
