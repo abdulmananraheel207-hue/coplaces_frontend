@@ -11,7 +11,7 @@ export default function ProfitLoss() {
   const { months, setMonths } = useFinancePeriod();
   const q = useFinanceReport(months);
   if (q.isLoading) return <Loading />;
-  if (q.error || !q.data) return <ErrorNote error={q.error} />;
+  if (q.error || !q.data) return <ErrorNote error={q.error} onRetry={() => void q.refetch()} retrying={q.isFetching} />;
   const r = q.data;
   const cur = r.currency;
   const pl = r.profitLoss;

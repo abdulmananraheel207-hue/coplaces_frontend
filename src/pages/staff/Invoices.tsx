@@ -229,7 +229,7 @@ export default function Invoices() {
       {list.isLoading ? (
         <Loading />
       ) : list.error ? (
-        <ErrorNote error={list.error} />
+        <ErrorNote error={list.error} onRetry={() => void list.refetch()} retrying={list.isFetching} />
       ) : rows.length === 0 ? (
         <Empty title="No invoices found" hint={status || q ? 'Try clearing the filters.' : manager ? 'Generate this month’s invoices or create one by hand.' : 'Create one by hand.'} />
       ) : (

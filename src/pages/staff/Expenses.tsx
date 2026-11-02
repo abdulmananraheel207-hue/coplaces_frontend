@@ -138,7 +138,7 @@ export default function Expenses() {
       {list.isLoading ? (
         <Loading />
       ) : list.error ? (
-        <ErrorNote error={list.error} />
+        <ErrorNote error={list.error} onRetry={() => void list.refetch()} retrying={list.isFetching} />
       ) : rows.length === 0 ? (
         <Empty title="No expenses found" hint="Record rent, utilities, supplies and other costs to see your net result." action={<Button variant="primary" onClick={() => setEditing('new')}>Add expense</Button>} />
       ) : (

@@ -19,7 +19,7 @@ export default function MemberInvoices() {
       {list.isLoading ? (
         <Loading />
       ) : list.error ? (
-        <ErrorNote error={list.error} />
+        <ErrorNote error={list.error} onRetry={() => void list.refetch()} retrying={list.isFetching} />
       ) : rows.length === 0 ? (
         <Empty title="No invoices yet" hint="Your monthly invoice shows up here once it has been issued." />
       ) : (

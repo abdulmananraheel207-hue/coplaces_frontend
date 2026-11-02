@@ -102,7 +102,7 @@ export function InvoiceView({ backTo, staff }: { backTo: string; staff: boolean 
   });
 
   if (q.isLoading) return <Loading />;
-  if (q.error || !q.data) return <ErrorNote error={q.error ?? new Error('Invoice not found')} />;
+  if (q.error || !q.data) return <ErrorNote error={q.error ?? new Error('Invoice not found')} onRetry={() => void q.refetch()} retrying={q.isFetching} />;
   const inv = q.data;
   const cur = inv.currency;
   const tone = inv.status === 'paid' ? 'ok' : inv.status === 'void' ? 'idle' : inv.overdue ? 'busy' : 'hold';

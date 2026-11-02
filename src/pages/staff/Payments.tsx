@@ -59,7 +59,7 @@ export default function Payments() {
       {list.isLoading ? (
         <Loading />
       ) : list.error ? (
-        <ErrorNote error={list.error} />
+        <ErrorNote error={list.error} onRetry={() => void list.refetch()} retrying={list.isFetching} />
       ) : rows.length === 0 ? (
         <Empty title="No payments in this period" hint="Record payments from an invoice." />
       ) : (

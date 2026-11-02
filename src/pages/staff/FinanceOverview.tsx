@@ -49,7 +49,7 @@ export default function FinanceOverview() {
   const loc = useLocation();
   const q = useFinanceReport(months);
   if (q.isLoading) return <Loading />;
-  if (q.error || !q.data) return <ErrorNote error={q.error} />;
+  if (q.error || !q.data) return <ErrorNote error={q.error} onRetry={() => void q.refetch()} retrying={q.isFetching} />;
   const r: FinanceReport = q.data;
   const cur = r.currency;
   const { collectedCents: inCents, expensesCents: outCents, netCents } = r.totals;
