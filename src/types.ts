@@ -175,7 +175,12 @@ export interface Resource {
   name: string;
   floor: string;
   capacity: number;
+  /**
+   * The only price a space has: per hour, set in the price list (PUT /resources/pricing). Zero means it cannot be booked
+   * by the hour. The old day, half-day, peak and no-plan prices were removed on the server.
+   */
   hourlyRateCents: number;
+  /** No longer used by the server. Still read by the floor plan editor until it is removed there. */
   dailyRateCents: number;
   amenities: string;
   status: ResourceStatus;
@@ -196,12 +201,6 @@ export interface Resource {
   closeTime: string | null;
   /** Weekdays it is shut on top of the location's, like "0,6". */
   closedWeekdays: string | null;
-  offPeakRateCents: number | null;
-  peakStart: string | null;
-  peakEnd: string | null;
-  halfDayRateCents: number | null;
-  fullDayRateCents: number | null;
-  noPlanRateCents: number | null;
   /** The photos of it, in the order they were added. */
   photoIds?: string[];
   occupied?: boolean;

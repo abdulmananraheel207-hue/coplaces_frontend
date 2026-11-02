@@ -115,17 +115,16 @@ export function stateOf(r: Resource, schedule: Schedule | undefined, at: Date): 
 }
 
 export interface BuildOptions {
-  /** Adds a price to rooms and hot desks. */
+  /** Adds the hourly price to spaces that have one. */
   currency?: string;
   /** Retired spaces are hidden from the 3D view; the list used for managing spaces still needs them. */
   includeRetired?: boolean;
 }
 
-function rateOf(r: Resource, currency: string | undefined) {
-  if (!currency) return undefined;
-  if (isRoomKind(r.kind)) return `${money(r.hourlyRateCents, currency)} an hour`;
-  if (r.kind === 'hot_desk') return `${money(r.dailyRateCents, currency)} a day`;
-  return undefined;
+/** What a space costs, in words: its hourly price, the only price the server uses. Nothing when it has none. */
+export function rateOf(r: Pick<Resource, 'hourlyRateCents'>, currency: string | undefined) {
+  if (!currency || !(r.hourlyRateCents > 0)) return undefined;
+  return `${money(r.hourlyRateCents, currency)} an hour`;
 }
 
 export function buildSpaceItems(resources: Resource[], schedule: Schedule | undefined, at: Date, options: BuildOptions = {}): SpaceItem[] {

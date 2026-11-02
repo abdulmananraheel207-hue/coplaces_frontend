@@ -28,12 +28,6 @@ const res = (o: Partial<Resource> = {}): Resource => ({
   openTime: null,
   closeTime: null,
   closedWeekdays: null,
-  offPeakRateCents: null,
-  peakStart: null,
-  peakEnd: null,
-  halfDayRateCents: null,
-  fullDayRateCents: null,
-  noPlanRateCents: null,
   ...o,
 });
 const placed = (o: Partial<Resource>, x: number, z: number, rot = 0) => res({ ...o, planX: x, planZ: z, planRot: rot });
