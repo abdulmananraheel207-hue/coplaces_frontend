@@ -75,7 +75,6 @@ import {
 import { api, errorMessage } from '../../api';
 import { useFeature } from '../../auth';
 import { OBJECTS, PALETTE, STYLES, TINTS, VARIANTS, isRoomKind, styleDef, type PaletteEntry } from '../../lib/catalogue';
-import { fromCents, toCents } from '../../lib/format';
 import { useRefresh } from '../../lib/queries';
 import type { SpaceItem } from '../../lib/spaceState';
 import type { FloorObject, FloorTemplate, ObjectTint, ObjectVariant, Resource } from '../../types';
@@ -939,10 +938,6 @@ function Properties({
   const stepD = limits.max.d <= 1 ? 0.05 : SNAP;
   const title = isObject(t) ? OBJECTS[t.object].label : t.name || 'Unnamed';
   const variants = isObject(t) ? VARIANTS[t.object] : undefined;
-  const rate = (apply: (c: number) => void) => (text: string) => {
-    const c = toCents(text);
-    if (c !== null) apply(c);
-  };
 
   return (
     <div className="space-y-4">
@@ -978,16 +973,7 @@ function Properties({
               <Commit type="number" min={1} max={500} value={String(t.capacity)} onCommit={(v) => Number(v) >= 1 && onPatch({ capacity: Math.min(500, Math.round(Number(v))) })} />
             </Field>
           )}
-          {isRoomKind(t.kind) && (
-            <Field label={`Hourly rate (${currency})`} hint={t.kind === 'corporate_room' ? "Always billed at this rate. A plan's included minutes do not apply. Peak hours, day passes and more are under Edit on the Spaces page." : 'Peak hours, day passes and more are under Edit on the Spaces page.'}>
-              <Commit inputMode="decimal" value={fromCents(t.hourlyRateCents)} onCommit={rate((c) => onPatch({ hourlyRateCents: c }))} />
-            </Field>
-          )}
-          {t.kind === 'hot_desk' && (
-            <Field label={`Day rate (${currency})`}>
-              <Commit inputMode="decimal" value={fromCents(t.dailyRateCents)} onCommit={rate((c) => onPatch({ dailyRateCents: c }))} />
-            </Field>
-          )}
+          {(isRoomKind(t.kind) || t.kind === 'hot_desk') && <p className="text-xs text-slate">Prices are kept in the price list, not in the floor plan.</p>}
           {(isRoomKind(t.kind) || t.kind === 'office' || t.kind === 'hot_desk' || t.kind === 'dedicated_desk') && (
             <div>
               <p className="mb-1 text-[13px] font-semibold">What it offers</p>

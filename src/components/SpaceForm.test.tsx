@@ -31,7 +31,6 @@ const room = (o: Partial<Resource> = {}): Resource => ({
   floor: '1',
   capacity: 4,
   hourlyRateCents: 150_000,
-  dailyRateCents: 0,
   amenities: '',
   status: 'available',
   notes: '',

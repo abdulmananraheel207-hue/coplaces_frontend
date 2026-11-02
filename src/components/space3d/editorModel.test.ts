@@ -14,7 +14,6 @@ const res = (o: Partial<Resource> = {}): Resource => ({
   floor: '1',
   capacity: 4,
   hourlyRateCents: 100,
-  dailyRateCents: 0,
   amenities: '',
   status: 'available',
   notes: '',
@@ -174,9 +173,31 @@ describe('saving', () => {
     const r = rs();
     const o = ob();
     let d = startDraft(r, o).draft;
-    d = { ...d, things: d.things.map((t) => (t.type === 'resource' && t.name === 'Boardroom' ? { ...t, name: 'Council Room', hourlyRateCents: 500 } : t)) };
+    d = { ...d, things: d.things.map((t) => (t.type === 'resource' && t.name === 'Boardroom' ? { ...t, name: 'Council Room' } : t)) };
     const { body } = buildSave('loc', d, r, o);
-    expect(body.update[0]!.props).toEqual({ name: 'Council Room', hourlyRateCents: 500 });
+    expect(body.update[0]!.props).toEqual({ name: 'Council Room' });
+  });
+
+  it('never sends a price: the server takes prices only from the price list', () => {
+    const r = rs();
+    const o = ob();
+    let d = startDraft(r, o).draft;
+    d = placeThing(d, entry('room:meeting'), '1', 30, 30, 0, [], 9).draft;
+    d = placeThing(d, entry('hot_desk:standard'), '1', 40, 40, 0, [], 10).draft;
+    d = { ...d, things: d.things.map((t) => (t.type === 'resource' && t.id ? { ...t, name: `${t.name} renamed` } : t)) };
+    const { body } = buildSave('loc', d, r, o);
+    const sent = JSON.stringify(body);
+    expect(body.create.length).toBeGreaterThan(0);
+    expect(body.update.length).toBeGreaterThan(0);
+    expect(sent).not.toMatch(/RateCents|peakStart|peakEnd/);
+  });
+
+  it('keeps prices out of saved arrangements', () => {
+    const r = rs();
+    const d = startDraft(r, []).draft;
+    const things = toTemplate(d, d.things.map((t) => t.key));
+    expect(things.length).toBeGreaterThan(0);
+    expect(JSON.stringify(things)).not.toMatch(/RateCents/);
   });
 });
 
@@ -193,9 +214,10 @@ describe('placing and fitting', () => {
   it('starts new things with their style defaults', () => {
     const empty: Draft = { things: [], floors: [] };
     const t = placeThing(empty, entry('hot_desk:standing'), '1', 0, 0, 0, [], 1).thing;
-    expect(t).toMatchObject({ type: 'resource', kind: 'hot_desk', style: 'standing', capacity: 1, dailyRateCents: 170_000 });
+    expect(t).toMatchObject({ type: 'resource', kind: 'hot_desk', style: 'standing', capacity: 1 });
     const hall = placeThing(empty, entry('corporate_room:training_hall'), '1', 0, 0, 0, [], 2).thing;
-    expect(hall).toMatchObject({ capacity: 30, hourlyRateCents: 1_200_000 });
+    expect(hall).toMatchObject({ capacity: 30 });
+    expect(hall).not.toHaveProperty('hourlyRateCents');
   });
 
   it('only fits things on their own floor, clear of others, and inside the allowed area', () => {
@@ -379,15 +401,15 @@ describe('the palette', () => {
       expect(ids).toContain(`object:${id}`);
   });
 
-  it('starts every new thing at a sensible size and price', () => {
+  it('starts every new thing at a sensible size, with no price of its own', () => {
     const empty: Draft = { things: [], floors: [] };
     for (const e of all) {
       const t = placeThing(empty, e, '1', 0, 0, 0, [], 1).thing;
       const size = boxOf(t);
       expect(size.w).toBeGreaterThan(0.05);
       expect(size.d).toBeGreaterThan(0.05);
-      if (t.type === 'resource' && (t.kind === 'room' || t.kind === 'corporate_room')) expect(t.hourlyRateCents).toBeGreaterThan(0);
-      if (t.type === 'resource' && t.kind === 'hot_desk') expect(t.dailyRateCents).toBeGreaterThan(0);
+      expect(t).not.toHaveProperty('hourlyRateCents');
+      expect(t).not.toHaveProperty('dailyRateCents');
     }
   });
 });

@@ -180,8 +180,6 @@ export interface Resource {
    * by the hour. The old day, half-day, peak and no-plan prices were removed on the server.
    */
   hourlyRateCents: number;
-  /** No longer used by the server. Still read by the floor plan editor until it is removed there. */
-  dailyRateCents: number;
   amenities: string;
   status: ResourceStatus;
   notes: string;
@@ -744,7 +742,7 @@ export interface Occupancy {
 
 /** One thing in a saved arrangement, positioned relative to the arrangement's own corner. */
 export type TemplateThing =
-  | { type: 'resource'; kind: ResourceKind; style: string; name: string; capacity: number; hourlyRateCents: number; dailyRateCents: number; amenities: string; x: number; z: number; rot: number; w: number | null; d: number | null }
+  | { type: 'resource'; kind: ResourceKind; style: string; name: string; capacity: number; amenities: string; x: number; z: number; rot: number; w: number | null; d: number | null }
   | { type: 'object'; object: FloorObjectType; label: string; variant: ObjectVariant; tint: ObjectTint; x: number; z: number; rot: number; w: number | null; d: number | null };
 
 export interface FloorTemplate {
