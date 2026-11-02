@@ -1,6 +1,6 @@
 import { api } from '../api';
 import { fromCents, METHOD_LABEL, money, titleCase } from '../lib/format';
-import { fmtDate } from '../lib/time';
+import { fmtDate, localDateOf } from '../lib/time';
 import type { Contract, DepositEntry, Location } from '../types';
 
 const escape = (s: string) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]!);
@@ -19,7 +19,7 @@ export async function printContract(c: Contract, place: Location, company: strin
     ? `<h2>Money record</h2><table class="grid"><thead><tr><th>Date</th><th>What happened</th><th>How</th><th class="r">Amount</th></tr></thead><tbody>${entries
         .map(
           (e) =>
-            `<tr><td>${escape(fmtDate(e.occurredAt.slice(0, 10)))}</td><td>${ENTRY_WORD[e.kind]}</td><td>${escape([e.method ? METHOD_LABEL[e.method] : '', e.reference].filter(Boolean).join(', '))}</td><td class="r">${escape(money(e.amountCents, cur))}</td></tr>`,
+            `<tr><td>${escape(fmtDate(localDateOf(e.occurredAt, place.timezone)))}</td><td>${ENTRY_WORD[e.kind]}</td><td>${escape([e.method ? METHOD_LABEL[e.method] : '', e.reference].filter(Boolean).join(', '))}</td><td class="r">${escape(money(e.amountCents, cur))}</td></tr>`,
         )
         .join('')}</tbody></table>`
     : '';
@@ -64,5 +64,5 @@ export async function printContract(c: Contract, place: Location, company: strin
 }
 
 /** Plain-number export of the advance and security deposit entries, for a spreadsheet. */
-export const depositRows = (entries: { occurredAt: string; memberName: string; resourceName: string | null; kind: string; method: string | null; reference: string; amountCents: number }[]) =>
-  entries.map((e) => [e.occurredAt.slice(0, 10), e.memberName, e.resourceName ?? '', e.kind === 'advance' ? 'Advance received' : `Security deposit ${e.kind}`, e.method ? METHOD_LABEL[e.method as keyof typeof METHOD_LABEL] : '', e.reference, fromCents(e.amountCents)]);
+export const depositRows = (entries: { occurredAt: string; memberName: string; resourceName: string | null; kind: string; method: string | null; reference: string; amountCents: number }[], timezone: string) =>
+  entries.map((e) => [localDateOf(e.occurredAt, timezone), e.memberName, e.resourceName ?? '', e.kind === 'advance' ? 'Advance received' : `Security deposit ${e.kind}`, e.method ? (METHOD_LABEL[e.method as keyof typeof METHOD_LABEL] ?? titleCase(e.method)) : '', e.reference, fromCents(e.amountCents)]);

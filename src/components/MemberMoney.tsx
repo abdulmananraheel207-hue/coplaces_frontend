@@ -6,7 +6,7 @@ import { useToast } from './toast';
 import { Button, Chip, ErrorNote, Field, Input, Modal, Section, Select } from './ui';
 import { fromCents, METHOD_LABEL, money, toCents } from '../lib/format';
 import { useRefresh } from '../lib/queries';
-import { fmtDate } from '../lib/time';
+import { fmtDate, localDateOf } from '../lib/time';
 import type { MemberDetail, PaymentMethod } from '../types';
 
 export interface MoneyState {
@@ -168,7 +168,7 @@ export function MoneySection({ m, canSettle }: { m: MemberDetail; canSettle: boo
               <tbody>
                 {m.moneyEntries.map((e) => (
                   <tr key={e.id}>
-                    <td className="num whitespace-nowrap">{fmtDate(e.occurredAt.slice(0, 10))}</td>
+                    <td className="num whitespace-nowrap">{fmtDate(localDateOf(e.occurredAt, loc.timezone))}</td>
                     <td>{ENTRY_WORD[e.kind]}</td>
                     <td>{[e.method ? METHOD_LABEL[e.method] : '', e.reference].filter(Boolean).join(', ') || '—'}</td>
                     <td className="r font-semibold">{money(e.amountCents, loc.currency)}</td>

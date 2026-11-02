@@ -3,12 +3,12 @@ import { Link } from 'react-router';
 import { MoneyChart } from '../../components/MoneyChart';
 import { Bars } from '../../components/Bars';
 import { Button, ErrorNote, Loading, Section } from '../../components/ui';
-import { useAuth, useFeature } from '../../auth';
+import { useAuth, useFeature, useLocation } from '../../auth';
 import { CollectButton } from '../../components/Amenities';
 import { can } from '../../lib/permissions';
 import { downloadCsv, METHOD_LABEL, money, moneyWhole, titleCase } from '../../lib/format';
 import { depositRows } from '../../components/ContractPrint';
-import { fmtDate } from '../../lib/time';
+import { fmtDate, localDateOf } from '../../lib/time';
 import type { FinanceReport } from '../../types';
 import { PERIOD_WORD, PeriodPicker, useFinancePeriod, useFinanceReport } from './Finance';
 
@@ -46,6 +46,7 @@ export default function FinanceOverview() {
   const { months, setMonths } = useFinancePeriod();
   const invoicing = useFeature('invoicing');
   const { user } = useAuth();
+  const loc = useLocation();
   const q = useFinanceReport(months);
   if (q.isLoading) return <Loading />;
   if (q.error || !q.data) return <ErrorNote error={q.error} />;
@@ -117,7 +118,7 @@ export default function FinanceOverview() {
         <Section
           title="Advances and security deposits"
           aside={
-            <Button small onClick={() => downloadCsv('contract-money.csv', [['Date', 'Member', 'Space', 'What happened', 'How', 'Reference', 'Amount'], ...depositRows(r.deposits.movements)])} disabled={!r.deposits.movements.length}>
+            <Button small onClick={() => downloadCsv('contract-money.csv', [['Date', 'Member', 'Space', 'What happened', 'How', 'Reference', 'Amount'], ...depositRows(r.deposits.movements, loc.timezone)])} disabled={!r.deposits.movements.length}>
               Export
             </Button>
           }
@@ -144,7 +145,7 @@ export default function FinanceOverview() {
                 <tbody>
                   {r.deposits.movements.map((m) => (
                     <tr key={m.id}>
-                      <td className="num whitespace-nowrap">{fmtDate(m.occurredAt.slice(0, 10))}</td>
+                      <td className="num whitespace-nowrap">{fmtDate(localDateOf(m.occurredAt, loc.timezone))}</td>
                       <td>
                         <span className="font-semibold">{m.memberName}</span>
                         {m.resourceName && <span className="block text-xs text-slate">{m.resourceName}</span>}

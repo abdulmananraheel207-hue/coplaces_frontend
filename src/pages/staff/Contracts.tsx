@@ -10,7 +10,7 @@ import { useToast } from '../../components/toast';
 import { Button, Chip, Empty, ErrorNote, Field, Input, Loading, Modal, PageHeader, Select, Textarea } from '../../components/ui';
 import { downloadCsv, fromCents, KIND_LABEL, METHOD_LABEL, money, titleCase, toCents } from '../../lib/format';
 import { useRefresh, useResources } from '../../lib/queries';
-import { fmtDate, todayIn } from '../../lib/time';
+import { fmtDate, localDateOf, todayIn } from '../../lib/time';
 import type { Contract, DepositEntry, PaymentMethod } from '../../types';
 
 const contractTone = { draft: 'hold', active: 'ok', ended: 'idle', cancelled: 'idle' } as const;
@@ -203,7 +203,7 @@ function DepositHistory({ contract }: { contract: Contract }) {
           <tbody>
             {q.data.map((e) => (
               <tr key={e.id}>
-                <td className="num whitespace-nowrap">{fmtDate(e.occurredAt.slice(0, 10))}</td>
+                <td className="num whitespace-nowrap">{fmtDate(localDateOf(e.occurredAt, loc.timezone))}</td>
                 <td>{ENTRY_WORD[e.kind]}</td>
                 <td>{[e.method ? METHOD_LABEL[e.method] : '', e.reference].filter(Boolean).join(', ') || '—'}</td>
                 <td className="r font-semibold">{money(e.amountCents, loc.currency)}</td>
