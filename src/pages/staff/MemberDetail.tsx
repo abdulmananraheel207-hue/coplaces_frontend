@@ -1,15 +1,19 @@
 import { useState, type FormEvent } from 'react';
-import { Link, useParams } from 'react-router';
+import { Link, useNavigate, useParams } from 'react-router';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { api, errorMessage } from '../../api';
 import { useAuth, useLocation } from '../../auth';
+import { AmenitySection, FreeFields, freeBody, freeFrom, freeOk, type FreeState } from '../../components/Amenities';
 import { CredentialsModal } from '../../components/Credentials';
+import { PlanPicker } from '../../components/PlanPicker';
+import { cents, emptyMoney, MoneyFields, MoneySection, moneyOk, type MoneyState } from '../../components/MemberMoney';
 import { useToast } from '../../components/toast';
 import { Button, Chip, Empty, ErrorNote, Field, Input, Ledger, Loading, Modal, PageHeader, Section, Select, Textarea, buttonClass } from '../../components/ui';
 import { KIND_LABEL, money, titleCase } from '../../lib/format';
 import { can } from '../../lib/permissions';
-import { usePlans, useRefresh } from '../../lib/queries';
-import { fmtDate, fmtDay, fmtTime, localDateOf } from '../../lib/time';
+import { planPeriodState, planPeriodWords } from '../../lib/planPeriod';
+import { useAmenities, usePlans, useRefresh } from '../../lib/queries';
+import { fmtDate, fmtDay, fmtTime, localDateOf, todayIn } from '../../lib/time';
 import type { Booking, InvoiceRow, MemberDetail as Detail, MemberStatus } from '../../types';
 import { statusTone } from './Members';
 
@@ -26,15 +30,34 @@ function EditForm({ m, onDone }: { m: Detail; onDone: () => void }) {
     planId: m.planId ?? '',
     status: m.status as MemberStatus,
     startDate: m.startDate,
-    endDate: m.endDate ?? '',
     notes: m.notes,
   });
+  const [received, setReceived] = useState<MoneyState>(emptyMoney);
+  const [free, setFree] = useState<FreeState>(() => freeFrom(m));
+  const amenities = useAmenities(loc.id);
+  const [shiftIds, setShiftIds] = useState<string[]>(m.shifts.map((s) => s.id));
+  const [spaceIds, setSpaceIds] = useState<string[]>(m.desks.map((d) => d.id));
   const set = (k: keyof typeof v, val: string) => setV((x) => ({ ...x, [k]: val }));
+  const plan = plans.data?.find((p) => p.id === v.planId);
+  // What they had, to see whether the plan, shifts or desks were changed at all.
+  const same = (a: string[], b: string[]) => a.length === b.length && a.every((x) => b.includes(x));
+  const planChanged = v.planId !== (m.planId ?? '') || !same(shiftIds, m.shifts.map((s) => s.id)) || !same(spaceIds, m.desks.map((d) => d.id));
+  const today = todayIn(loc.timezone);
+  // The end of a plan period is decided by the plan, so there is no end date here. Changes are booked from today, or from the start if later.
+  const from = m.planStart && m.planStart > today && v.planId === (m.planId ?? '') ? m.planStart : today;
   const save = useMutation({
-    mutationFn: () => api.patch(`/members/${m.id}`, { ...v, planId: v.planId || null, endDate: v.endDate || null }),
+    mutationFn: async () => {
+      const { planId, ...rest } = v;
+      void planId;
+      await api.patch(`/members/${m.id}`, { ...rest, ...freeBody(free, amenities.data) });
+      const adv = cents(received.advance) ?? 0;
+      const dep = cents(received.deposit) ?? 0;
+      if (adv > 0 || dep > 0) await api.post(`/members/${m.id}/money`, { ...(adv > 0 ? { advanceCents: adv } : {}), ...(dep > 0 ? { depositCents: dep } : {}), method: received.method, reference: received.reference });
+      if (planChanged && v.status === 'active') await api.put(`/members/${m.id}/plan`, { planId: v.planId || null, shiftIds, deskIds: spaceIds });
+    },
     onSuccess: () => {
       toast.ok('Member updated');
-      void refresh('member', 'members', 'dashboard');
+      void refresh('member', 'members', 'bookings', 'invoices', 'dashboard');
       onDone();
     },
   });
@@ -60,7 +83,14 @@ function EditForm({ m, onDone }: { m: Detail; onDone: () => void }) {
           <Input value={v.phone} onChange={(e) => set('phone', e.target.value)} />
         </Field>
         <Field label="Plan">
-          <Select value={v.planId} onChange={(e) => set('planId', e.target.value)}>
+          <Select
+            value={v.planId}
+            onChange={(e) => {
+              set('planId', e.target.value);
+              setShiftIds([]);
+              setSpaceIds([]);
+            }}
+          >
             <option value="">No plan</option>
             {plans.data?.map((p) => (
               <option key={p.id} value={p.id}>
@@ -81,17 +111,22 @@ function EditForm({ m, onDone }: { m: Detail; onDone: () => void }) {
         <Field label="Start date">
           <Input type="date" required value={v.startDate} onChange={(e) => set('startDate', e.target.value)} />
         </Field>
-        <Field label="End date" hint="Stops monthly billing after this date.">
-          <Input type="date" value={v.endDate} onChange={(e) => set('endDate', e.target.value)} />
-        </Field>
       </div>
+      {plan && v.status === 'active' && (
+        <div className="space-y-2">
+          <PlanPicker plan={plan} startDate={from} shiftIds={shiftIds} spaceIds={spaceIds} onShifts={setShiftIds} onSpaces={setSpaceIds} memberId={m.id} advanceCents={Math.max(m.advanceCents, cents(received.advance) ?? 0)} />
+          {planChanged && <p className="text-xs text-slate">Saving re-books the shifts and desks from {from}. Days that have already passed stay as they were, and an unpaid invoice for this period is replaced with the new total.</p>}
+        </div>
+      )}
       <Field label="Notes">
         <Textarea value={v.notes} onChange={(e) => set('notes', e.target.value)} rows={3} />
       </Field>
+      <MoneyFields value={received} onChange={setReceived} locked={{ advance: m.advanceReceivedAt !== null, deposit: m.depositStatus !== 'pending' }} />
+      <FreeFields value={free} onChange={setFree} />
       {save.error && <ErrorNote error={new Error(errorMessage(save.error))} />}
       <div className="flex justify-end gap-2">
         <Button onClick={onDone}>Cancel</Button>
-        <Button type="submit" variant="primary" disabled={save.isPending}>
+        <Button type="submit" variant="primary" disabled={save.isPending || !moneyOk(received) || !freeOk(free, amenities.data)}>
           Save changes
         </Button>
       </div>
@@ -106,7 +141,9 @@ export default function MemberDetail() {
   const mayInvoice = can(user, 'invoices');
   const toast = useToast();
   const refresh = useRefresh();
+  const navigate = useNavigate();
   const [editing, setEditing] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [creds, setCreds] = useState<{ name: string; email: string; password: string } | null>(null);
 
   const member = useQuery({ queryKey: ['member', id], queryFn: () => api.get<Detail>(`/members/${id}`) });
@@ -118,6 +155,26 @@ export default function MemberDetail() {
     queryKey: ['invoices', 'member', id],
     queryFn: () => api.get<InvoiceRow[]>('/invoices', { locationId: loc.id, memberId: id }),
     enabled: mayInvoice,
+  });
+  const renew = useMutation({
+    mutationFn: () => api.post<{ start: string; end: string }>(`/members/${id}/renew`, {}),
+    onSuccess: (r) => {
+      toast.ok(`Renewed from ${fmtDate(r.start)} to ${fmtDate(r.end)}`);
+      void refresh('member', 'members', 'bookings', 'invoices', 'dashboard');
+    },
+    onError: (e) => toast.error(errorMessage(e)),
+  });
+  const remove = useMutation({
+    mutationFn: () => api.del(`/members/${id}`),
+    onSuccess: () => {
+      toast.ok('Member deleted');
+      void refresh('members', 'bookings', 'invoices', 'dashboard', 'attendance');
+      navigate('/members');
+    },
+    onError: (e) => {
+      toast.error(errorMessage(e));
+      setDeleting(false);
+    },
   });
   const reset = useMutation({
     mutationFn: () => api.post<{ tempPassword: string }>(`/members/${id}/reset-password`),
@@ -159,10 +216,44 @@ export default function MemberDetail() {
             New invoice
           </Link>
         )}
+        {can(user, 'members') &&
+          (deleting ? (
+            <span className="flex items-center gap-1.5 text-sm">
+              Delete {m.name} for good?
+              <Button small variant="ghost" onClick={() => setDeleting(false)}>
+                Keep
+              </Button>
+              <Button small variant="danger" disabled={remove.isPending} onClick={() => remove.mutate()}>
+                Yes, delete
+              </Button>
+            </span>
+          ) : (
+            <Button variant="ghost" onClick={() => setDeleting(true)}>
+              Delete
+            </Button>
+          ))}
       </PageHeader>
+
+      {m.shifts.length > 0 && m.planEnd && (
+        <div className={`mb-6 flex flex-wrap items-center justify-between gap-3 rounded-lg px-4 py-3 text-sm ${planPeriodState(m.planEnd, todayIn(loc.timezone)) ? 'bg-hold/15' : 'bg-plaster'}`}>
+          <span>
+            {m.plan?.name}: {m.shifts.map((s) => `${s.name} ${s.startTime}–${s.endTime}`).join(', ')}
+            {m.desks.length ? `, on ${m.desks.map((d) => d.name).join(', ')}` : ''}. This period {m.planStart ? `${fmtDate(m.planStart)} to ` : 'until '}
+            {fmtDate(m.planEnd)}
+            {planPeriodState(m.planEnd, todayIn(loc.timezone)) && <strong>, and it {planPeriodWords(m.planEnd, todayIn(loc.timezone))}.</strong>}
+          </span>
+          {m.status === 'active' && planPeriodState(m.planEnd, todayIn(loc.timezone)) && (
+            <Button variant="primary" disabled={renew.isPending} onClick={() => renew.mutate()}>
+              Renew plan
+            </Button>
+          )}
+        </div>
+      )}
 
       <div className="grid gap-10 lg:grid-cols-[minmax(0,1fr)_20rem]">
         <div className="space-y-9">
+          <MoneySection m={m} canSettle={m.status !== 'active' || !m.planEnd || !!planPeriodState(m.planEnd, todayIn(loc.timezone))} />
+          <AmenitySection m={m} canCollect={can(user, 'front_desk') || mayInvoice} />
           <Section title="Upcoming bookings">
             {bookings.isLoading ? (
               <Loading />
@@ -255,7 +346,6 @@ export default function MemberDetail() {
                 { label: 'Phone', value: m.phone || '—' },
                 { label: m.contractCompany ? 'Contract' : 'Plan', value: m.contractCompany ? `Through ${m.contractCompany}` : m.plan ? `${m.plan.name}, ${m.plan.interval === 'month' ? 'monthly' : 'day pass'}` : 'No plan' },
                 { label: 'Member since', value: fmtDate(m.startDate) },
-                ...(m.endDate ? [{ label: 'Ends', value: fmtDate(m.endDate) }] : []),
               ]}
             />
             {m.notes && <p className="mt-3 rounded-lg border border-line bg-paper px-3 py-2 text-sm">{m.notes}</p>}

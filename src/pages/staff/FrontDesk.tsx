@@ -2,48 +2,26 @@ import { useState, type FormEvent } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import { api, errorMessage } from '../../api';
 import { useFeature, useLocation } from '../../auth';
+import { AmenityDesk } from '../../components/Amenities';
 import { MemberSelect } from '../../components/MemberSelect';
 import { useToast } from '../../components/toast';
-import { Button, Chip, Empty, ErrorNote, Field, Input, Loading, Modal, PageHeader, Section, Select } from '../../components/ui';
-import { useBookingsRange, usePresent, useRefresh, useResources, useVisitors } from '../../lib/queries';
+import { Button, Chip, Empty, ErrorNote, Field, Input, Loading, Modal, PageHeader, Section } from '../../components/ui';
+import { usePresent, useRefresh, useVisitors } from '../../lib/queries';
 import { fmtTime, todayIn } from '../../lib/time';
-import { KIND_LABEL } from '../../lib/format';
 import type { Visitor } from '../../types';
 
 function CheckInForm() {
   const loc = useLocation();
   const toast = useToast();
   const refresh = useRefresh();
-  const resources = useResources(loc.id);
   const [memberId, setMemberId] = useState('');
-  const [resourceId, setResourceId] = useState('');
-  const today = todayIn(loc.timezone);
-  const todays = useBookingsRange(loc.id, today, today);
-  // Anywhere a person can be checked in: desks, offices and rooms. Rooms are for whoever booked them.
-  const places = resources.data?.filter((r) => ['hot_desk', 'dedicated_desk', 'office', 'room', 'corporate_room'].includes(r.kind) && r.status === 'available') ?? [];
-  const mine = memberId ? (todays.data ?? []).filter((b) => b.memberId === memberId && (b.status === 'confirmed' || b.status === 'completed')) : [];
-  // A desk can be booked for part of a day, so there may be several. The one running now, or next, is the one that counts.
-  const nowMs = Date.now();
-  const bookedDesks = mine.filter((b) => b.resourceKind === 'hot_desk').sort((a, b) => a.startsAt.localeCompare(b.startsAt));
-  const bookedDesk = bookedDesks.find((b) => nowMs >= Date.parse(b.startsAt) - 30 * 60_000 && nowMs < Date.parse(b.endsAt)) ?? bookedDesks.find((b) => Date.parse(b.endsAt) > nowMs) ?? bookedDesks[0];
-  const bookedDeskOut = bookedDesk ? !places.some((p) => p.id === bookedDesk.resourceId) : false;
-  // Someone with bookings can only be checked in at what they booked. If their desk is out of service they can be moved to another hot desk.
-  const desks = !memberId
-    ? places.filter((p) => p.kind !== 'room' && p.kind !== 'corporate_room')
-    : places.filter((p) => {
-        if (p.kind === 'room' || p.kind === 'corporate_room') return mine.some((b) => b.resourceId === p.id);
-        if (!bookedDesk) return true;
-        return bookedDesks.some((b) => b.resourceId === p.id) || (bookedDeskOut && p.kind === 'hot_desk');
-      });
-  const deskId = resourceId || (bookedDesk && !bookedDeskOut ? bookedDesk.resourceId : '');
-  const bookedNote = bookedDesk ? (bookedDeskOut ? `${bookedDesk.resourceName} is out of service today. Pick another hot desk and their booking moves with them.` : `Booked for today: ${bookedDesk.resourceName}.`) : mine.length ? 'Rooms they booked today are listed.' : '';
 
+  // There is nowhere to choose: a member is let in by their booking, and a plan's shift is one. Where they sit follows from it.
   const checkIn = useMutation({
-    mutationFn: () => api.post('/attendance/check-in', { memberId, resourceId: deskId || null }),
+    mutationFn: () => api.post('/attendance/check-in', { memberId }),
     onSuccess: () => {
       toast.ok('Checked in');
       setMemberId('');
-      setResourceId('');
       void refresh('attendance', 'dashboard', 'members');
     },
   });
@@ -56,26 +34,8 @@ function CheckInForm() {
       }}
       className="surface space-y-3 p-5"
     >
-      <Field label="Member arriving">
+      <Field label="Member arriving" hint="Members with a plan, shifts or a booking for now can be checked in. They sit where their plan or booking says.">
         <MemberSelect locationId={loc.id} value={memberId} onChange={setMemberId} required />
-      </Field>
-      <Field label="Where (optional)" hint={bookedNote || undefined}>
-        <Select value={deskId} onChange={(e) => setResourceId(e.target.value)}>
-          {!(bookedDesk && !bookedDeskOut) && <option value="">No space recorded</option>}
-          {Object.entries(KIND_LABEL)
-            .filter(([kind]) => desks.some((d) => d.kind === kind))
-            .map(([kind, label]) => (
-              <optgroup key={kind} label={label}>
-                {desks
-                  .filter((d) => d.kind === kind)
-                  .map((d) => (
-                    <option key={d.id} value={d.id}>
-                      {d.name}
-                    </option>
-                  ))}
-              </optgroup>
-            ))}
-        </Select>
       </Field>
       {checkIn.error && <ErrorNote error={new Error(errorMessage(checkIn.error))} />}
       <Button type="submit" variant="primary" disabled={!memberId || checkIn.isPending}>
@@ -216,6 +176,7 @@ export default function FrontDesk() {
           <Section title="Check a member in">
             <CheckInForm />
           </Section>
+          <AmenityDesk />
           <Section title="In the building" aside={present.data ? `${present.data.length} members` : undefined}>
             {present.isLoading ? (
               <Loading />
@@ -227,6 +188,7 @@ export default function FrontDesk() {
                   <thead>
                     <tr>
                       <th>Member</th>
+                      <th>Sitting at</th>
                       <th>Since</th>
                       <th>
                         <span className="sr-only">Actions</span>
@@ -238,8 +200,9 @@ export default function FrontDesk() {
                       <tr key={a.id}>
                         <td>
                           <span className="font-semibold">{a.memberName}</span>
-                          {(a.resourceName || a.company) && <span className="block text-xs text-slate">{[a.resourceName, a.company].filter(Boolean).join(', ')}</span>}
+                          {a.company && <span className="block text-xs text-slate">{a.company}</span>}
                         </td>
+                        <td>{a.resourceName ?? <span className="text-slate">No desk</span>}</td>
                         <td className="num">{fmtTime(a.checkInAt, loc.timezone)}</td>
                         <td className="r">
                           <Button small onClick={() => checkOut.mutate(a.id)} disabled={checkOut.isPending}>

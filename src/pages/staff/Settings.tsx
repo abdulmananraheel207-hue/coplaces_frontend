@@ -3,6 +3,7 @@ import { useMutation, useQuery } from '@tanstack/react-query';
 import { api, errorMessage } from '../../api';
 import { useAuth, useFeature, useLocation } from '../../auth';
 import { can, FRONT_DESK_PRESET, PERMISSION_KEYS } from '../../lib/permissions';
+import { AmenitiesSetup } from '../../components/Amenities';
 import { CredentialsModal } from '../../components/Credentials';
 import { useToast } from '../../components/toast';
 import { Button, Chip, ErrorNote, Field, Input, Loading, Modal, PageHeader, Section, Select } from '../../components/ui';
@@ -434,6 +435,7 @@ export default function Settings() {
         </Section>
 
         {can(user, 'holidays') && <Holidays />}
+        {can(user, 'plans') && <AmenitiesSetup />}
 
         {owner && (
           <>

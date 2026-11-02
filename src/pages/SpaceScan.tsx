@@ -79,7 +79,7 @@ export default function SpaceScan() {
             </Link>
           )}
           <Link to={team ? '/bookings' : '/book'} className={buttonClass()}>
-            {team ? 'Open bookings' : 'Book a space'}
+            {team ? 'Open bookings' : 'Request a room'}
           </Link>
         </div>
         {checkIn.error && <ErrorNote error={checkIn.error} />}

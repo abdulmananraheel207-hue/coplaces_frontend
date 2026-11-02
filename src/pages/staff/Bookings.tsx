@@ -4,6 +4,7 @@ import { ChevronLeft, ChevronRight, Download } from 'lucide-react';
 import { api, errorMessage } from '../../api';
 import { useLocation } from '../../auth';
 import { BookingModal, type BookingDraft } from '../../components/BookingModal';
+import { RoomRequestsPanel } from '../../components/RoomRequestsPanel';
 import { AmenityFilter, amenitiesAmong, withAmenities } from '../../components/AmenityFilter';
 import { BookingCalendar, BookingTimeline } from '../../components/BookingViews';
 import { ItemDetail } from '../../components/ItemDetail';
@@ -200,6 +201,8 @@ export default function Bookings() {
           New booking
         </Button>
       </PageHeader>
+
+      <RoomRequestsPanel />
 
       {view === 'calendar' && (
         <Section title="Month" aside="Click a day to open it">
