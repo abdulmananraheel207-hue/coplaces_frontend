@@ -11,6 +11,8 @@ import { Button, Chip, Empty, ErrorNote, Field, Input, Loading, Modal, Segmented
 import { downloadCsv, fromCents, money, titleCase, toCents } from '../../lib/format';
 import { FINANCE_KEYS, useRefresh } from '../../lib/queries';
 import { addDays, fmtDate, todayIn } from '../../lib/time';
+import { keepWithinLocation } from '../../lib/financePeriod';
+import { useDebounced } from '../../lib/useDebounced';
 import type { InvoiceRow } from '../../types';
 
 interface Line {
@@ -185,9 +187,12 @@ export default function Invoices() {
     }
   }, [params, setParams]);
 
+  // The search goes to the server once typing pauses, and the rows already shown stay until the answer arrives.
+  const search = useDebounced(q.trim(), 300);
   const list = useQuery({
-    queryKey: ['invoices', loc.id, status, q],
-    queryFn: () => api.get<InvoiceRow[]>('/invoices', { locationId: loc.id, status, q }),
+    queryKey: ['invoices', loc.id, status, search],
+    queryFn: () => api.get<InvoiceRow[]>('/invoices', { locationId: loc.id, status, q: search }),
+    placeholderData: keepWithinLocation(loc.id),
   });
   const rows = list.data ?? [];
 
