@@ -4,8 +4,9 @@ import { downloadCsv, fromCents, moneyWhole, titleCase } from '../../lib/format'
 import { fmtMonth } from '../../lib/time';
 import { PeriodPicker, useFinancePeriod, useFinanceReport } from './Finance';
 import { INCOME_LABEL } from './FinanceOverview';
+import { buildProfitLoss, marginText, toneOf } from '../../lib/profitLoss';
 
-const sum = (rows: number[][], i: number) => rows.reduce((s, r) => s + (r[i] ?? 0), 0);
+const TONE_CLASS = { ok: 'text-ok', busy: 'text-busy', neutral: '' } as const;
 
 export default function ProfitLoss() {
   const { months, setMonths } = useFinancePeriod();
@@ -15,24 +16,19 @@ export default function ProfitLoss() {
   const r = q.data;
   const updating = q.isPlaceholderData;
   const cur = r.currency;
-  const pl = r.profitLoss;
+  const pl = buildProfitLoss(r.profitLoss);
   const n = pl.months.length;
-  const cols = [...pl.months.keys()];
-  const inc = pl.income.map((x) => x.byMonth);
-  const cost = pl.costs.map((x) => x.byMonth);
-  const incomeBy = cols.map((i) => sum(inc, i));
-  const costBy = cols.map((i) => sum(cost, i));
-  const netBy = cols.map((i) => incomeBy[i]! - costBy[i]!);
-  const incomeTotal = incomeBy.reduce((a, b) => a + b, 0);
-  const costTotal = costBy.reduce((a, b) => a + b, 0);
-  const netTotal = incomeTotal - costTotal;
-  const marginBy = cols.map((i) => (incomeBy[i]! > 0 ? `${Math.round((netBy[i]! / incomeBy[i]!) * 100)}%` : '-'));
+  const { incomeBy, costBy, netBy, incomeTotal, costTotal, netTotal } = pl;
+  const sumRow = (byMonth: number[]) => byMonth.reduce((a, b) => a + b, 0);
+  const marginBy = pl.months.map((_, i) => marginText(netBy[i]!, incomeBy[i]!));
 
-  const incomeRows = pl.income.map((x) => ({ label: INCOME_LABEL[x.kind], byMonth: x.byMonth, total: x.totalCents }));
-  const costRows = pl.costs.map((x) => ({ label: titleCase(x.category), byMonth: x.byMonth, total: x.totalCents }));
+  // Each row's total is the sum of the months shown, so every row and column of the table adds up.
+  const incomeRows = pl.income.map((x) => ({ label: INCOME_LABEL[x.key], byMonth: x.byMonth, total: sumRow(x.byMonth) }));
+  const costRows = pl.costs.map((x) => ({ label: titleCase(x.key), byMonth: x.byMonth, total: sumRow(x.byMonth) }));
 
   const cell = (v: number) => (v === 0 ? <span className="text-slate">-</span> : moneyWhole(v, cur));
-  const netCell = (v: number) => <span className={v < 0 ? 'text-busy' : 'text-ok'}>{v < 0 ? `(${moneyWhole(-v, cur)})` : moneyWhole(v, cur)}</span>;
+  const netCell = (v: number) => <span className={TONE_CLASS[toneOf(v)]}>{v < 0 ? `(${moneyWhole(-v, cur)})` : moneyWhole(v, cur)}</span>;
+  const marginCell = (net: number, income: number) => <span className={net < 0 && income > 0 ? 'text-busy' : ''}>{marginText(net, income)}</span>;
 
   function exportCsv() {
     downloadCsv('profit-and-loss.csv', [
@@ -44,6 +40,7 @@ export default function ProfitLoss() {
       ...costRows.map((x) => [x.label, ...x.byMonth.map(fromCents), fromCents(x.total)]),
       ['Total costs', ...costBy.map(fromCents), fromCents(costTotal)],
       ['Net profit or loss', ...netBy.map(fromCents), fromCents(netTotal)],
+      ['Profit as a share of income', ...marginBy, marginText(netTotal, incomeTotal)],
     ]);
   }
 
@@ -131,7 +128,7 @@ export default function ProfitLoss() {
             </tr>
 
             <tr className="border-t-2 border-ink/80 text-[15px] font-bold">
-              <td>{netTotal >= 0 ? 'Net profit' : 'Net loss'}</td>
+              <td>{netTotal > 0 ? 'Net profit' : netTotal < 0 ? 'Net loss' : 'Net result'}</td>
               {netBy.map((v, i) => (
                 <td key={i} className="r">
                   {netCell(v)}
@@ -141,16 +138,21 @@ export default function ProfitLoss() {
             </tr>
             <tr className="text-slate">
               <td>Profit as a share of income</td>
-              {marginBy.map((v, i) => (
+              {netBy.map((v, i) => (
                 <td key={i} className="r">
-                  {v}
+                  {marginCell(v, incomeBy[i]!)}
                 </td>
               ))}
-              {n > 1 && <td className="r">{incomeTotal > 0 ? `${Math.round((netTotal / incomeTotal) * 100)}%` : '-'}</td>}
+              {n > 1 && <td className="r">{marginCell(netTotal, incomeTotal)}</td>}
             </tr>
           </tbody>
         </table>
       </div>
+      {pl.mismatch && (
+        <p role="status" className="rounded-lg border border-signal-deep/30 bg-hold-wash px-4 py-2.5 text-sm">
+          Some figures from the server did not line up with these months, so the totals here may be short. Try again, and if it keeps happening, tell Coplaces.
+        </p>
+      )}
       <p className="text-sm text-slate">
         Income is counted in the month a payment arrives, and costs in the month they were spent. Figures in brackets are a loss. Invoices not yet paid are not income yet; see the overview for what is still owed.
       </p>
