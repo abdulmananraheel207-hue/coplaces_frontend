@@ -16,7 +16,7 @@ import { RoomTimeline } from '../../components/RoomTimeline';
 import { useToast } from '../../components/toast';
 import { Button, Chip, Empty, ErrorNote, Field, Input, Loading, Modal, PageHeader, Section, Segmented, Select } from '../../components/ui';
 import { mondayOf, monthFirst, monthGrid, monthLast } from '../../lib/calendar';
-import { downloadCsv, fromCents, KIND_LABEL, money, titleCase } from '../../lib/format';
+import { csvAmount, downloadCsv, KIND_LABEL, money, titleCase } from '../../lib/format';
 import { useBookingsRange, useHolidays, useRefresh, useResources, useSchedule } from '../../lib/queries';
 import { buildSpaceItems, deskState } from '../../lib/spaceState';
 import { addDays, addMonths, fmtDay, fmtLongDay, fmtMonth, fmtTime, localDateOf, todayIn, zonedToUtc } from '../../lib/time';
@@ -48,7 +48,7 @@ function ExportModal({ open, onClose, from, to }: { open: boolean; onClose: () =
           KIND_LABEL[b.resourceKind],
           b.memberName,
           titleCase(b.status),
-          fromCents(b.priceCents),
+          csvAmount(b.priceCents),
           b.invoiceId ? 'Yes' : 'No',
           b.notes,
         ]),

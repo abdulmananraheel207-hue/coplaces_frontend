@@ -5,7 +5,7 @@ import { Download } from 'lucide-react';
 import { api } from '../../api';
 import { useLocation } from '../../auth';
 import { Button, Empty, ErrorNote, Field, Input, Loading, Select } from '../../components/ui';
-import { downloadCsv, fromCents, METHOD_LABEL, money } from '../../lib/format';
+import { csvAmount, downloadCsv, METHOD_LABEL, money } from '../../lib/format';
 import { fmtDate, localDateOf, todayIn } from '../../lib/time';
 import type { PaymentRow } from '../../types';
 
@@ -48,7 +48,7 @@ export default function Payments() {
           onClick={() =>
             downloadCsv('payments.csv', [
               ['Date', 'Invoice', 'Member', 'Method', 'Reference', 'Amount'],
-              ...rows.map((p) => [localDateOf(p.paidAt, loc.timezone), p.invoiceNumber, p.memberName, p.method, p.reference, fromCents(p.amountCents)]),
+              ...rows.map((p) => [localDateOf(p.paidAt, loc.timezone), p.invoiceNumber, p.memberName, p.method, p.reference, csvAmount(p.amountCents)]),
             ])
           }
         >

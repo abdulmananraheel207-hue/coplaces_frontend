@@ -1,5 +1,5 @@
 import { api } from '../api';
-import { fromCents, METHOD_LABEL, money, titleCase } from '../lib/format';
+import { csvAmount, METHOD_LABEL, money, titleCase } from '../lib/format';
 import { fmtDate, localDateOf } from '../lib/time';
 import type { Contract, DepositEntry, Location } from '../types';
 
@@ -65,4 +65,4 @@ export async function printContract(c: Contract, place: Location, company: strin
 
 /** Plain-number export of the advance and security deposit entries, for a spreadsheet. */
 export const depositRows = (entries: { occurredAt: string; memberName: string; resourceName: string | null; kind: string; method: string | null; reference: string; amountCents: number }[], timezone: string) =>
-  entries.map((e) => [localDateOf(e.occurredAt, timezone), e.memberName, e.resourceName ?? '', e.kind === 'advance' ? 'Advance received' : `Security deposit ${e.kind}`, e.method ? (METHOD_LABEL[e.method as keyof typeof METHOD_LABEL] ?? titleCase(e.method)) : '', e.reference, fromCents(e.amountCents)]);
+  entries.map((e) => [localDateOf(e.occurredAt, timezone), e.memberName, e.resourceName ?? '', e.kind === 'advance' ? 'Advance received' : `Security deposit ${e.kind}`, e.method ? (METHOD_LABEL[e.method as keyof typeof METHOD_LABEL] ?? titleCase(e.method)) : '', e.reference, csvAmount(e.amountCents)]);

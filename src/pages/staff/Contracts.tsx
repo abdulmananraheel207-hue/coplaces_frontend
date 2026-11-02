@@ -8,7 +8,7 @@ import { printContract } from '../../components/ContractPrint';
 import { MemberSelect } from '../../components/MemberSelect';
 import { useToast } from '../../components/toast';
 import { Button, Chip, Empty, ErrorNote, Field, Input, Loading, Modal, PageHeader, Select, Textarea } from '../../components/ui';
-import { downloadCsv, fromCents, KIND_LABEL, METHOD_LABEL, money, titleCase, toCents } from '../../lib/format';
+import { csvAmount, downloadCsv, fromCents, KIND_LABEL, METHOD_LABEL, money, titleCase, toCents } from '../../lib/format';
 import { FINANCE_KEYS, useRefresh, useResources } from '../../lib/queries';
 import { fmtDate, localDateOf, todayIn } from '../../lib/time';
 import type { Contract, DepositEntry, PaymentMethod } from '../../types';
@@ -296,7 +296,7 @@ function Contracts() {
             onClick={() =>
               downloadCsv('contracts.csv', [
                 ['Member', 'Company', 'Space', 'Starts', 'Ends', 'Rent per month', 'Advance', 'Advance received', 'Security deposit', 'Security deposit status', 'Returned', 'Status'],
-                ...(q.data ?? []).map((c) => [who(c), c.company, c.companyName ? c.spaces.map((s) => s.name).join(' + ') : (c.resourceName ?? ''), c.startDate, c.endDate ?? '', fromCents(c.rentCents), fromCents(c.advanceCents), c.advanceReceivedAt ? 'Yes' : c.advanceCents ? 'No' : '', fromCents(c.depositCents), depositLabel[c.depositStatus], fromCents(c.depositReturnedCents), titleCase(c.status)]),
+                ...(q.data ?? []).map((c) => [who(c), c.company, c.companyName ? c.spaces.map((s) => s.name).join(' + ') : (c.resourceName ?? ''), c.startDate, c.endDate ?? '', csvAmount(c.rentCents), csvAmount(c.advanceCents), c.advanceReceivedAt ? 'Yes' : c.advanceCents ? 'No' : '', csvAmount(c.depositCents), depositLabel[c.depositStatus], csvAmount(c.depositReturnedCents), titleCase(c.status)]),
               ])
             }
             disabled={!q.data?.length}

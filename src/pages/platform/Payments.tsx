@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Download } from 'lucide-react';
 import { api } from '../../api';
 import { Button, Empty, ErrorNote, Loading, PageHeader } from '../../components/ui';
-import { downloadCsv, fromCents, METHOD_LABEL, money } from '../../lib/format';
+import { csvAmount, downloadCsv, METHOD_LABEL, money } from '../../lib/format';
 import { fmtDate, localDateOf } from '../../lib/time';
 import type { PlatformPayment } from '../../types';
 
@@ -20,7 +20,7 @@ export default function PlatformPayments() {
           onClick={() =>
             downloadCsv('platform-payments.csv', [
               ['Received', 'Coworking space', 'Package', 'Covers from', 'Covers to', 'Method', 'Reference', 'Amount (PKR)'],
-              ...rows.map((p) => [localDateOf(p.paidAt, 'Asia/Karachi'), p.organizationName ?? '', p.packageName ?? '', p.periodStart, p.periodEnd, p.method, p.reference, fromCents(p.amountCents)]),
+              ...rows.map((p) => [localDateOf(p.paidAt, 'Asia/Karachi'), p.organizationName ?? '', p.packageName ?? '', p.periodStart, p.periodEnd, p.method, p.reference, csvAmount(p.amountCents)]),
             ])
           }
         >

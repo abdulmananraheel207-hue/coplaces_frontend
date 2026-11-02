@@ -1,6 +1,6 @@
 import { Download } from 'lucide-react';
 import { Button, ErrorNote, Loading } from '../../components/ui';
-import { downloadCsv, fromCents, moneyWhole, titleCase } from '../../lib/format';
+import { csvAmount, downloadCsv, moneyWhole, titleCase } from '../../lib/format';
 import { fmtMonth } from '../../lib/time';
 import { PeriodPicker, useFinancePeriod, useFinanceReport } from './Finance';
 import { INCOME_LABEL } from './FinanceOverview';
@@ -34,12 +34,12 @@ export default function ProfitLoss() {
     downloadCsv('profit-and-loss.csv', [
       ['', ...pl.months.map(fmtMonth), 'Total'],
       ['Income'],
-      ...incomeRows.map((x) => [x.label, ...x.byMonth.map(fromCents), fromCents(x.total)]),
-      ['Total income', ...incomeBy.map(fromCents), fromCents(incomeTotal)],
+      ...incomeRows.map((x) => [x.label, ...x.byMonth.map(csvAmount), csvAmount(x.total)]),
+      ['Total income', ...incomeBy.map(csvAmount), csvAmount(incomeTotal)],
       ['Costs'],
-      ...costRows.map((x) => [x.label, ...x.byMonth.map(fromCents), fromCents(x.total)]),
-      ['Total costs', ...costBy.map(fromCents), fromCents(costTotal)],
-      ['Net profit or loss', ...netBy.map(fromCents), fromCents(netTotal)],
+      ...costRows.map((x) => [x.label, ...x.byMonth.map(csvAmount), csvAmount(x.total)]),
+      ['Total costs', ...costBy.map(csvAmount), csvAmount(costTotal)],
+      ['Net profit or loss', ...netBy.map(csvAmount), csvAmount(netTotal)],
       ['Profit as a share of income', ...marginBy, marginText(netTotal, incomeTotal)],
     ]);
   }

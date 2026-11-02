@@ -8,7 +8,7 @@ import { can } from '../../lib/permissions';
 import { MemberSelect } from '../../components/MemberSelect';
 import { useToast } from '../../components/toast';
 import { Button, Chip, Empty, ErrorNote, Field, Input, Loading, Modal, Segmented, Textarea } from '../../components/ui';
-import { downloadCsv, fromCents, money, titleCase, toCents } from '../../lib/format';
+import { csvAmount, downloadCsv, money, titleCase, toCents } from '../../lib/format';
 import { FINANCE_KEYS, useRefresh } from '../../lib/queries';
 import { addDays, fmtDate, todayIn } from '../../lib/time';
 import { keepWithinLocation } from '../../lib/financePeriod';
@@ -219,7 +219,7 @@ export default function Invoices() {
           onClick={() =>
             downloadCsv('invoices.csv', [
               ['Number', 'Member', 'Issued', 'Due', 'Status', 'Total', 'Paid', 'Balance'],
-              ...rows.map((i) => [i.number, i.memberName, i.issueDate, i.dueDate, i.overdue ? 'overdue' : i.status, fromCents(i.totalCents), fromCents(i.paidCents), fromCents(i.balanceCents)]),
+              ...rows.map((i) => [i.number, i.memberName, i.issueDate, i.dueDate, i.overdue ? 'overdue' : i.status, csvAmount(i.totalCents), csvAmount(i.paidCents), csvAmount(i.balanceCents)]),
             ])
           }
         >

@@ -56,6 +56,9 @@ export function toCents(input: string): number | null {
 
 export const fromCents = (cents: number) => (cents / 100).toFixed(2);
 
+/** An amount for a spreadsheet: a real number in whole units, so it adds up in Excel and a negative is never taken for a formula. */
+export const csvAmount = (cents: number) => cents / 100;
+
 export const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 
 export const initials = (name: string) =>
@@ -87,15 +90,17 @@ export const METHOD_LABEL = {
 
 export const titleCase = (s: string) => s.charAt(0).toUpperCase() + s.slice(1).replace(/_/g, ' ');
 
-/** A plain number such as "-1500.00" can never run as a formula, so it is left alone and stays a number in the spreadsheet. */
-const PLAIN_NUMBER = /^-?\d+(\.\d+)?$/;
 /** What a spreadsheet treats as the start of a formula. */
 const FORMULA_START = /^[=+\-@\t\r]/;
 
-/** One cell, safe to open in Excel or Sheets: anything that could start a formula is turned into text, and quotes are escaped. */
+/**
+ * One cell, safe to open in Excel or Sheets. Every string that starts like a formula gets a leading quote, whatever
+ * follows, so "-1+cmd" or a name typed as "-Ali" can never run. Only values that are numbers in the code are left
+ * alone, which is why amounts go into exports through `csvAmount`, never as text.
+ */
 export function csvCell(v: string | number | null | undefined) {
   let s = v === null || v === undefined ? '' : String(v);
-  if (typeof v === 'string' && FORMULA_START.test(s) && !PLAIN_NUMBER.test(s)) s = `'${s}`;
+  if (typeof v === 'string' && FORMULA_START.test(s)) s = `'${s}`;
   return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }
 

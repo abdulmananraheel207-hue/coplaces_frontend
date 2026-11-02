@@ -5,7 +5,7 @@ import { api, errorMessage } from '../../api';
 import { useLocation } from '../../auth';
 import { useToast } from '../../components/toast';
 import { Button, ConfirmButton, Empty, ErrorNote, Field, Input, Loading, Modal, Select } from '../../components/ui';
-import { downloadCsv, fromCents, money, titleCase, toCents } from '../../lib/format';
+import { csvAmount, downloadCsv, fromCents, money, titleCase, toCents } from '../../lib/format';
 import { FINANCE_KEYS, useRefresh } from '../../lib/queries';
 import { addDays, addMonths, fmtDate, todayIn } from '../../lib/time';
 import type { Expense } from '../../types';
@@ -124,7 +124,7 @@ export default function Expenses() {
           <Button
             disabled={rows.length === 0}
             onClick={() =>
-              downloadCsv('expenses.csv', [['Date', 'Category', 'Vendor', 'Description', 'Amount'], ...rows.map((e) => [e.incurredOn, e.category, e.vendor, e.description, fromCents(e.amountCents)])])
+              downloadCsv('expenses.csv', [['Date', 'Category', 'Vendor', 'Description', 'Amount'], ...rows.map((e) => [e.incurredOn, e.category, e.vendor, e.description, csvAmount(e.amountCents)])])
             }
           >
             <Download size={15} /> Export
