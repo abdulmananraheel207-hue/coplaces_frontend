@@ -10,7 +10,7 @@ import { FINANCE_KEYS, useRefresh } from '../lib/queries';
 import { fmtDate, localDateOf } from '../lib/time';
 import type { InvoiceDetail, PaymentMethod } from '../types';
 import { useToast } from './toast';
-import { Button, Chip, ErrorNote, Field, Input, Loading, Modal, Select } from './ui';
+import { Button, Chip, ConfirmButton, ErrorNote, Field, Input, Loading, Modal, Select } from './ui';
 
 function PaymentForm({ inv, onDone }: { inv: InvoiceDetail; onDone: () => void }) {
   const toast = useToast();
@@ -123,14 +123,9 @@ export function InvoiceView({ backTo, staff }: { backTo: string; staff: boolean 
             </Button>
           )}
           {staff && manager && inv.status === 'open' && inv.paidCents === 0 && (
-            <Button
-              variant="danger"
-              onClick={() => {
-                if (window.confirm(`Void ${inv.number}? Its bookings become billable again.`)) voidIt.mutate();
-              }}
-            >
+            <ConfirmButton variant="danger" small={false} question={`Void ${inv.number}? Its bookings become billable again.`} yes="Yes, void it" busy={voidIt.isPending} onConfirm={() => voidIt.mutate()}>
               Void invoice
-            </Button>
+            </ConfirmButton>
           )}
         </div>
       </div>
@@ -224,15 +219,9 @@ export function InvoiceView({ backTo, staff }: { backTo: string; staff: boolean 
                       <td className="r">{money(p.amountCents, cur)}</td>
                       {staff && manager && (
                         <td className="r no-print">
-                          <Button
-                            small
-                            variant="ghost"
-                            onClick={() => {
-                              if (window.confirm('Remove this payment? The invoice balance will go back up.')) removePayment.mutate(p.id);
-                            }}
-                          >
+                          <ConfirmButton question="Remove this payment? The balance goes back up." yes="Yes, remove" busy={removePayment.isPending} onConfirm={() => removePayment.mutate(p.id)}>
                             Remove
-                          </Button>
+                          </ConfirmButton>
                         </td>
                       )}
                     </tr>

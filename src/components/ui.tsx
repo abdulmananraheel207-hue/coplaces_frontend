@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, type ButtonHTMLAttributes, type InputHTMLAttributes, type ReactNode, type SelectHTMLAttributes, type TextareaHTMLAttributes } from 'react';
+import { useEffect, useId, useRef, useState, type ButtonHTMLAttributes, type InputHTMLAttributes, type ReactNode, type SelectHTMLAttributes, type TextareaHTMLAttributes } from 'react';
 import { CountText } from './Count';
 import { NavLink } from 'react-router';
 import { X } from 'lucide-react';
@@ -176,11 +176,71 @@ export const Loading = ({ label = 'Loading' }: { label?: string }) => (
   </p>
 );
 
-export const ErrorNote = ({ error }: { error: unknown }) => (
-  <p role="alert" className="rounded-lg border border-busy/25 bg-busy-wash px-3.5 py-2.5 text-sm text-busy">
-    {error instanceof Error ? error.message : 'Something went wrong'}
-  </p>
+/** What went wrong, in the server's words. With `onRetry`, a Try again button sits beside it. */
+export const ErrorNote = ({ error, onRetry, retrying }: { error: unknown; onRetry?: () => void; retrying?: boolean }) => (
+  <div role="alert" className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-busy/25 bg-busy-wash px-3.5 py-2.5 text-sm text-busy">
+    <span>{error instanceof Error ? error.message : 'Something went wrong'}</span>
+    {onRetry && (
+      <Button small onClick={onRetry} disabled={retrying}>
+        {retrying ? 'Trying again…' : 'Try again'}
+      </Button>
+    )}
+  </div>
 );
+
+/**
+ * A button that asks before it acts, in place: pressing it shows the question with Keep and a Yes button, the way the
+ * rest of the app confirms. Used instead of the browser's own confirm box.
+ */
+export function ConfirmButton({
+  children,
+  question,
+  yes,
+  onConfirm,
+  busy,
+  variant = 'ghost',
+  small = true,
+  label,
+}: {
+  children: ReactNode;
+  question: string;
+  /** The words on the button that goes ahead, like "Yes, void it". */
+  yes: string;
+  onConfirm: () => void;
+  busy?: boolean;
+  variant?: Variant;
+  small?: boolean;
+  /** An accessible name for the first button when its text alone is not enough. */
+  label?: string;
+}) {
+  const [asking, setAsking] = useState(false);
+  if (!asking) {
+    return (
+      <Button small={small} variant={variant} aria-label={label} onClick={() => setAsking(true)}>
+        {children}
+      </Button>
+    );
+  }
+  return (
+    <span className="inline-flex flex-wrap items-center gap-1.5 text-sm font-normal text-ink" role="group" aria-label={question}>
+      <span>{question}</span>
+      <Button small={small} variant="ghost" onClick={() => setAsking(false)}>
+        Keep
+      </Button>
+      <Button
+        small={small}
+        variant="danger"
+        disabled={busy}
+        onClick={() => {
+          onConfirm();
+          setAsking(false);
+        }}
+      >
+        {yes}
+      </Button>
+    </span>
+  );
+}
 
 export function Tabs({ items }: { items: { to: string; label: string; end?: boolean }[] }) {
   return (

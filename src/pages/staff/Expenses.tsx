@@ -4,7 +4,7 @@ import { Download } from 'lucide-react';
 import { api, errorMessage } from '../../api';
 import { useLocation } from '../../auth';
 import { useToast } from '../../components/toast';
-import { Button, Empty, ErrorNote, Field, Input, Loading, Modal, Select } from '../../components/ui';
+import { Button, ConfirmButton, Empty, ErrorNote, Field, Input, Loading, Modal, Select } from '../../components/ui';
 import { downloadCsv, fromCents, money, titleCase, toCents } from '../../lib/format';
 import { FINANCE_KEYS, useRefresh } from '../../lib/queries';
 import { addDays, addMonths, fmtDate, todayIn } from '../../lib/time';
@@ -168,15 +168,9 @@ export default function Expenses() {
                     <Button small variant="ghost" onClick={() => setEditing(e)}>
                       Edit
                     </Button>
-                    <Button
-                      small
-                      variant="ghost"
-                      onClick={() => {
-                        if (window.confirm(`Delete this ${money(e.amountCents, loc.currency)} expense?`)) remove.mutate(e.id);
-                      }}
-                    >
+                    <ConfirmButton question={`Delete this ${money(e.amountCents, loc.currency)} expense?`} yes="Yes, delete" busy={remove.isPending} onConfirm={() => remove.mutate(e.id)}>
                       Delete
-                    </Button>
+                    </ConfirmButton>
                   </td>
                 </tr>
               ))}
