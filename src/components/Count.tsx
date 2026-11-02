@@ -20,7 +20,7 @@ export function CountText({ text }: { text: string }) {
     const start = performance.now();
     const begin = from.current;
     let raf = requestAnimationFrame(function step(now: number) {
-      const t = Math.min(1, (now - start) / 750);
+      const t = Math.min(1, (now - start) / 400);
       const eased = 1 - Math.pow(1 - t, 3);
       const v = begin + (target - begin) * eased;
       from.current = v;

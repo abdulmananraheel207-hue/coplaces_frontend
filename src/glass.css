@@ -221,15 +221,10 @@ dialog > div > .sticky {
   border-bottom-color: rgb(255 255 255 / 0.7);
 }
 
-/* ---- Motion: blur-in instead of a plain rise ------------------------------------------------------------------ */
+/* ---- Motion ------------------------------------------------------------------------------------------------- */
 
-@keyframes page-in {
-  from {
-    opacity: 0;
-    transform: translateY(18px) scale(0.985);
-    filter: blur(10px);
-  }
-}
+/* Pages use the short fade in index.css. Animating a blur filter over a whole page, on top of the frosted panels, was
+   the costliest thing the app drew on every navigation. */
 .lift:hover {
   transform: translateY(-4px);
   box-shadow:
