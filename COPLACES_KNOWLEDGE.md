@@ -6,7 +6,7 @@
 >
 > **Companion file:** the backend repository has its own `COPLACES_KNOWLEDGE.md`. Its **§9 "Finance rules as they behave today"** is the reference for how the server calculates money (it lists known server issues as **H1–H6**). Where both files describe the same rule, they must agree; this file points to backend §9 instead of repeating it.
 >
-> Last updated: 2026-11-03 (branch `finance-overhaul`, after the Stage 0 finance fixes).
+> Last updated: 2026-11-03 (branch `finance-overhaul`, after the Stage 0 and 0b finance fixes).
 
 ---
 
@@ -120,6 +120,7 @@ src/
     financePeriod.ts    Finance period in the URL, period range, keep figures while loading
     profitLoss.ts       Profit and loss maths: columns, totals, margin, tone
     useDebounced.ts     Value that settles after typing pauses
+    priceBasis.ts       basisNote: where a booking price came from, for the four server bases
     features.ts         FEATURE_LABELS, ROLE_LABEL
     catalogue.ts        Space styles, floor object catalogue, amenity options, palette
     spaceState.ts       Live status of each space (free/busy/mine/hold/idle)
@@ -362,12 +363,14 @@ Helpers: `isRoomKind` (room, corporate_room), `isDeskKind` (hot_desk, dedicated_
 
 `ResourceStatus`: `available`, `cleaning`, `maintenance`, `reserved` (none of these three can be booked), `retired` (hidden from booking and the 3D view; still in the management list).
 
-Key fields: `name, floor, capacity, hourlyRateCents, dailyRateCents, amenities` (comma-separated text)`, status, notes, style, description, photoIds`; position in the plan `planX, planZ, planW, planD, planRot` (quarter turns 0–3, metres; `null` until placed); own hours `openTime/closeTime`; extra closed weekdays `closedWeekdays`; pricing extras `offPeakRateCents, peakStart, peakEnd, halfDayRateCents, fullDayRateCents, noPlanRateCents`; live `occupied`, `occupant { assignmentId, memberId, name, company }`.
+Key fields: `name, floor, capacity, hourlyRateCents, amenities` (comma-separated text)`, status, notes, style, description, photoIds`; position in the plan `planX, planZ, planW, planD, planRot` (quarter turns 0–3, metres; `null` until placed); own hours `openTime/closeTime`; extra closed weekdays `closedWeekdays`; live `occupied`, `occupant { assignmentId, memberId, name, company }`.
 
-**Styles** (`lib/catalogue.ts` `STYLES`; the server validates the keys). Default price in cents is shown in brackets:
-- room: `meeting` (6 seats, 2,000/h), `phone_booth` (1, 800/h), `huddle` (4, 1,500/h), `training` (12, 3,500/h), `studio` podcast (4, 2,500/h), `interview` (3, 1,000/h), `focus` (1, 900/h), `video_call` (4, 1,800/h)
-- corporate_room: `boardroom` (16, 9,000/h), `training_hall` (30, 12,000/h), `event_hall` (80, 20,000/h)
-- hot_desk: `standard` (1,500/day), `standing` (1,700), `corner` (1,800), `day_office` (3 seats, 4,500/day)
+**Price:** a space has one price, `hourlyRateCents`, set only through the server's price list (`PUT /resources/pricing`, §11). Zero means it cannot be booked by the hour. The old day, half-day, peak and no-plan prices no longer exist, and the frontend type no longer has them.
+
+**Styles** (`lib/catalogue.ts` `STYLES`; the server validates the keys). Seats are shown in brackets; the catalogue carries no prices:
+- room: `meeting` (6), `phone_booth` (1), `huddle` (4), `training` (12), `studio` podcast (4), `interview` (3), `focus` (1), `video_call` (4)
+- corporate_room: `boardroom` (16), `training_hall` (30), `event_hall` (80)
+- hot_desk: `standard` (1), `standing` (1), `corner` (1), `day_office` (3)
 - dedicated_desk: `standard`, `standing`, `corner`, `team_pod` (4 desks rented as one)
 - office: `standard` (4 seats), `executive` (6)
 - storage: `locker`, `mailbox`, `parking`
@@ -551,7 +554,7 @@ Per location date plus name. The location is closed that day: nothing can be boo
 - **SpaceForm** groups:
   - *About it*: name, type (locked after creation), style, floor, seats (1–500), description, "What it offers" amenity chips.
   - *Photos* (edit only): upload and remove. Photos are shrunk in the browser before upload (raw body `POST /resources/:id/photos`) and served from `/api/resources/photos/:id/file`.
-  - *Pricing* (rooms and hot desks): hourly or daily rate; no-plan rate; optional peak hours with an off-peak rate; half-day and full-day prices (rooms). **The backend no longer uses any of these except the hourly rate** (rate-card pricing was removed, backend §8.2), so this form is out of date; see §16.
+  - *Price* (editing only, read only): the hourly price ("Rs 1,500 an hour. People can book it by the hour."), or "No hourly price, so it cannot be booked by the hour. It is only used through plans and contracts.", with "Prices are kept in the price list, not on the space." The form has no price boxes and sends no price; the server would ignore one anyway.
   - *Opening hours*: "This space has its own hours" and "Also closed on" weekdays.
   - *Status*: Available / Being cleaned / Under maintenance / Reserved / Retired, and private notes.
 - **QR codes** sheet: one QR per non-retired space (filterable by kind) linking to `{origin}/s/{id}`. **Print** opens a print-ready sheet in a new window (3 per row, with name, type and floor, "Scan to check in, see details or report a problem").
@@ -772,7 +775,7 @@ A full 3D editor that works on a **draft**. Nothing is saved until **Save**, whi
 - **Add many**: one item in a grid (rows × columns), or a pod of four desks, placed at the nearest free spot.
 - **Selecting**: click; Shift+click adds or removes; Shift+drag on empty floor draws a box selection. Drag to move, snapped to a **0.5 m grid**. Alignment guides (yellow lines) snap things to their neighbours. The footprint outline is green where it fits and red where it overlaps.
 - **Rules**: nothing may overlap (except structure objects); sides from 1 m to 30 m (object-specific limits for walls, doors and so on); at most **250 things** per draft; a save takes up to 200 new spaces and 300 new objects.
-- **Single-item inspector**: name, seats, style, size in metres (type or step), turn, variant (door type, zone shape), zone tint, label text.
+- **Single-item inspector**: name, seats, style, size in metres (type or step), turn, variant (door type, zone shape), zone tint, label text. No prices: for rooms and hot desks it says "Prices are kept in the price list, not in the floor plan." New, imported and template spaces carry no price, and a save never sends one.
 - **Group panel**: duplicate, turn, remove, align (left, centre, right, top, middle, bottom, spread across, spread down), save as template, clear selection.
 - **Templates**: saved arrangements shared across the organization (`GET/POST/DELETE /floor-plan/templates`). Apply one to the current floor.
 - **Floors**: a floor switcher; add a floor (respects the package limit).
@@ -815,18 +818,21 @@ The server calculates every price (`POST /bookings/quote` and on save). **Backen
 
 **Booking prices (server)**
 - Rate-card pricing (day rate, half-day, full-day, peak and off-peak, no-plan rate) **was removed on the server**. Only the hourly rate and shift prices remain. `dailyRateCents` is no longer used.
+- The hourly rate is set **only** through the price list, `PUT /resources/pricing` (permission `plans`): `{ locationId, prices: [{ resourceId, hourlyRateCents }] }`, 1 to 1000 entries, each a whole number from 0 to 1,000,000,000,000 cents; every space must be in that location (otherwise 404). It returns `{ changed }` and runs in one transaction. Prices sent with a space create or edit, a floor plan save or a template are ignored.
+- **Any** kind of space can be priced; a priced dedicated desk or office can be booked or requested by the hour. A price of 0 removes it from the booking grid and from new requests (requests already made are kept).
 - A hot desk on a plan that includes hot desks: free (basis `plan`).
 - Otherwise a matching shift with a price: that price in full (basis `shift`). It never uses free minutes.
 - Otherwise hourly: `round(hourly rate × billable minutes / 60)` (basis `hourly`). A whole-day hot desk is the hourly rate times the business-day minutes.
 - For meeting rooms (`room`) only, the free monthly allowance is the plan's `includedMeetingMinutes` plus `meetingCredits × 30` (so **2 credit hours = 1 free hour**), less what was already used this month (basis `minutes`). Corporate rooms never use free minutes.
 - Only spaces with an hourly rate above zero can be booked or requested.
 
-**How the frontend explains the basis** (`basisNote` in `BookingModal.tsx`)
+**How the frontend explains the basis** (`basisNote` in `lib/priceBasis.ts`, shown in the booking dialog)
+- The server's `PriceBasis` (backend `services/bookings.ts`) is exactly `plan`, `minutes`, `shift`, `hourly`, and the frontend type matches it. A test compares the two when the backend repository sits next to this one.
 - `plan`: "Included in the member's/your plan"
-- `minutes`: "N min covered by included meeting minutes, the rest charged by the hour" (or fully covered)
-- `shift`: "{Name} shift price (set in Shift templates)"
-- `hourly`: "Rs X an hour (set on the space)"
-- The frontend still has texts for `daily`, `dayshare` and `rates`, left from rate-card pricing. The server no longer returns them (see §16).
+- `minutes`: "N min covered by the member's/your free meeting time, the rest charged by the hour", or "Covered by … free meeting time"
+- `shift`: "{Name} shift price (set on the shift in Plans)"
+- `hourly`: "Rs X an hour (from the price list)"
+- Any other basis shows nothing rather than a wrong explanation.
 
 **Plans, money and invoices (server)**
 - **Plan price** = the sum of the shifts the member picked, per month (monthly plan) or per day (day pass). Starting or renewing a plan period bills one plan invoice at once, with one line per priced shift, minus any unused advance (backend §8.4).
@@ -1039,6 +1045,8 @@ Other shared components: `toast` (`useToast().ok/.error`), `MemberSelect` (+ `us
 - `lib/profitLoss.ts`: `toneOf`, `marginOf`, `marginText`, `marginNote`, `fitToMonths`, `buildProfitLoss` (§7.10).
 - `lib/queries.ts`: `FINANCE_KEYS` (§7.10).
 - `lib/useDebounced.ts`: `useDebounced(value, ms)`.
+- `lib/priceBasis.ts`: `basisNote(basis, currency, staff)` (§11).
+- `lib/spaceState.ts`: `rateOf(resource, currency)`, the hourly price in words, or nothing when a space has none.
 
 ### Time (`lib/time.ts`)
 Time-zone-aware: `todayIn(tz)`, `addDays`, `addMonths`, `toMinutes` / `fromMinutes`, `fmtTime(iso, tz)`, `localDateOf`, `minutesOfDay`, `fmtDay` ("Wed 21 Oct"), `fmtDate` ("21 Oct 2026"), `fmtLongDay` ("Wednesday 21 October"), `fmtMonth`, `fmtDateTime`, `fmtDuration`, `daysBetween`, `zonedToUtc(date, time, tz)`.
@@ -1075,7 +1083,7 @@ Time-zone-aware: `todayIn(tz)`, `addDays`, `addMonths`, `toMinutes` / `fromMinut
 11. **Demo accounts** appear on the login page in dev only (`import.meta.env.DEV`), all with password `coplaces123`: `admin@coplaces.test` (platform), `owner@nest.test` (Pro), `manager@nest.test`, `frontdesk@nest.test`, `hamza.sheikh@example.pk` (member), `owner@hive.test` (Growth), `owner@workbay.test` (Starter, trial).
 12. **Legacy redirects** exist (`/shifts` → `/plans`, `/money/*` → `/finance`). Do not remove them.
 13. **Legacy data shapes**: shifts without `planId`, shifts with `resourceId`/`kind` instead of `spaceIds`, single-member contracts. Handle them when touching those areas.
-14. **Tests**: Vitest, 15 files and 206 tests. They cover the editor model, import layout, plan vision, permissions, money formatting and `toCents`, CSV safety, time-zone dates, the money-area access rules, the finance refresh guard, the finance period and placeholder behaviour, profit and loss maths, the debounce hook, and `ConfirmButton` / `ErrorNote`. Component and hook tests start with `// @vitest-environment jsdom` and use Testing Library; plain helpers run in Node. Run `npm test` and `npm run typecheck` before finishing changes. `npm run build` rewrites the committed `dist/` folder; do not commit that unless asked.
+14. **Tests**: Vitest, 18 files and 231 tests. They cover the editor model, import layout, plan vision, permissions, money formatting and `toCents`, CSV safety, time-zone dates, the money-area access rules, the finance refresh guard, the finance period and placeholder behaviour, profit and loss maths, the debounce hook, `ConfirmButton` / `ErrorNote`, the space form sending no prices, the shown hourly price (`rateOf`), and the four price bases (checked against the backend's type when it is next door). Component and hook tests start with `// @vitest-environment jsdom` and use Testing Library; plain helpers run in Node. Run `npm test` and `npm run typecheck` before finishing changes. `npm run build` rewrites the committed `dist/` folder; do not commit that unless asked.
 15. **Never ship secrets.** `.env` holds only `API_URL`. Production routing is in `vercel.json`.
 16. **Printing** uses `window.print()` or a pop-up window (QR sheet, contract print). Mark the app chrome `.no-print`.
 17. **Confirmations**: destructive actions use inline "Keep / Yes, …" confirmations (`ConfirmButton`). Finance no longer uses `window.confirm`. Seven non-finance places still do (floor plan templates, suspending a tenant, announcements, two on devices, two in maintenance).
@@ -1107,7 +1115,8 @@ From the Stage 0 audit (2026-11-02), still open after the frontend fixes. Where 
 - The new-invoice tax preview is computed in the browser (the server rounds the same way today, once per invoice, but the server's total is what counts). A `POST /invoices/preview` would remove it.
 
 **Frontend behind the backend**
-- The space form still edits rate-card prices (day, half-day, full-day, peak, off-peak, no-plan) that the server no longer uses. The booking dialog still has texts for the `daily`, `dayshare` and `rates` price bases. The server's hourly price list (`PUT /resources/pricing`) has no screen yet.
+- **No price list screen.** The server's hourly price list (`PUT /resources/pricing`, §11) has no screen, so nobody can set or change a price from the web app, and new spaces cannot be booked by the hour until one exists. (The old price boxes were removed in Stage 0b because the server ignored them.)
+- The booking dialog offers only meeting rooms, corporate rooms and hot desks, while the server lets any priced space be booked by the hour.
 - No screen for `POST /amenities/invoice`, amenity requests, or overstaying members.
 - Payments are dated when they are entered; the server accepts `paidAt`, but there is no field for it (and back-dating is undecided, see H5).
 - On Today, the frontend shows the month figures to the invoices *or* reports area, while the server only sends them for reports plus invoicing. The effect is the same, but the frontend rule should match the server's exactly.

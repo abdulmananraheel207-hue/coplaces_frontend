@@ -42,7 +42,15 @@
 - **Missing screen:** a price list for owners and anyone with `plans`. It should show every space at the location with its hourly price, editable in bulk, and save them in one request.
 - **Until that screen exists, nobody can set or change a price from the web app.** New spaces start at 0 and cannot be booked by the hour. This was already true before Stage 0b, because the old boxes were silently ignored; now the screens say so honestly.
 
-## Not done (usage limit reached)
+## Knowledge file
 
-- `COPLACES_KNOWLEDGE.md` is not yet updated for Stage 0b. Its sections 7.6, 10.2, 11, 12 and 16 still mention the rate-card inputs and the old price bases.
-- The booking dialog still lists only rooms and hot desks, although the server now allows booking any priced space.
+- `COPLACES_KNOWLEDGE.md` updated in its own commit (see the git log after this report). It now covers:
+  - the single hourly price (§6.2) and the price list endpoint (§11)
+  - the read-only price line in the space form (§7.6) and the editor note (§10.2)
+  - the four price bases (§11), the new helpers, and the test count
+  - the missing price list screen as a known issue (§16)
+
+## Still open
+
+- No price list screen: nobody can set a price from the web app yet.
+- The booking dialog lists only rooms and hot desks, although the server allows booking any priced space by the hour.
