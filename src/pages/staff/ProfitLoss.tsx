@@ -3,7 +3,7 @@ import { Button, ErrorNote, Loading } from '../../components/ui';
 import { csvAmount, downloadCsv, moneyWhole, titleCase } from '../../lib/format';
 import { fmtMonth } from '../../lib/time';
 import { PeriodPicker, useFinancePeriod, useFinanceReport } from './Finance';
-import { INCOME_LABEL } from './FinanceOverview';
+import { INCOME_LABEL } from '../../lib/financeCharts';
 import { buildProfitLoss, marginText, toneOf } from '../../lib/profitLoss';
 
 const TONE_CLASS = { ok: 'text-ok', busy: 'text-busy', neutral: '' } as const;

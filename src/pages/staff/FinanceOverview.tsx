@@ -1,19 +1,25 @@
-import { CountText } from '../../components/Count';
+import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router';
-import { MoneyChart } from '../../components/MoneyChart';
-import { Bars } from '../../components/Bars';
-import { Button, ErrorNote, Loading, Section } from '../../components/ui';
+import { api } from '../../api';
 import { useAuth, useLocation } from '../../auth';
 import { CollectButton } from '../../components/Amenities';
-import { overviewSections } from '../../lib/access';
-import { downloadCsv, METHOD_LABEL, money, moneyWhole, titleCase } from '../../lib/format';
+import { BarList } from '../../components/charts/BarList';
+import { ColumnChart } from '../../components/charts/ColumnChart';
+import { MONEY_COLOR } from '../../components/charts/palette';
+import { SegmentedBar } from '../../components/charts/SegmentedBar';
 import { depositRows } from '../../components/ContractPrint';
-import { fmtDate, localDateOf } from '../../lib/time';
-import { PERIOD_WORD, PeriodPicker, useFinancePeriod, useFinanceReport } from './Finance';
-import { withPeriod } from '../../lib/financePeriod';
+import { CountText } from '../../components/Count';
+import { Button, ErrorNote, Loading, Section } from '../../components/ui';
+import { canUse, overviewSections } from '../../lib/access';
+import { agingParts, agingTotal, billedVsCollected, incomeMix, INCOME_LABEL, invoiceProgress, moneyByMonth, ranked, shareText, topDebtors } from '../../lib/financeCharts';
+import { keepWithinLocation, withPeriod } from '../../lib/financePeriod';
+import { downloadCsv, METHOD_LABEL, money, moneyWhole, titleCase } from '../../lib/format';
 import { marginNote, toneOf } from '../../lib/profitLoss';
+import { fmtDate, fmtMonth, localDateOf } from '../../lib/time';
+import type { InvoiceRow } from '../../types';
+import { PERIOD_WORD, PeriodPicker, useFinancePeriod, useFinanceReport } from './Finance';
 
-export const INCOME_LABEL = { subscription: 'Memberships and plans', manual: 'Rooms, desks and other charges', kept_deposit: 'Security deposits we kept', advance: 'Advance rent from contracts', amenities: 'Amenities (tea, coffee, food)' } as const;
+export { INCOME_LABEL };
 
 const MOVE_WORD = { received: 'Security deposit received', refunded: 'Security deposit returned', kept: 'Security deposit kept as income', advance: 'Advance received' } as const;
 
@@ -35,7 +41,7 @@ function Figure({ label, value, sub, tone, note }: { label: string; value: strin
         <span className={`inline-block size-2 rounded-full ${dot}`} aria-hidden />
         {label}
       </p>
-      <p className={`display num mt-2 text-[1.75rem] leading-tight ${tone === 'ok' ? 'text-ok' : tone === 'busy' ? 'text-busy' : ''}`}>
+      <p className={`display mt-2 text-[1.75rem] leading-tight ${tone === 'ok' ? 'text-ok' : tone === 'busy' ? 'text-busy' : ''}`}>
         <CountText text={value} />
       </p>
       {sub && <p className={`mt-1 text-xs font-semibold ${note ?? 'text-slate'}`}>{sub}</p>}
@@ -43,12 +49,45 @@ function Figure({ label, value, sub, tone, note }: { label: string; value: strin
   );
 }
 
+/** A note under a chart built from invoice rows when they do not add up to the report's own figure. */
+function Mismatch({ what }: { what: string }) {
+  return (
+    <p role="status" className="mt-2 rounded-lg border border-signal-deep/30 bg-hold-wash px-3 py-2 text-xs">
+      These invoices add up to a different total than the report's {what}, so this chart may be missing some (the list holds the newest 500). The figures at the top of the page are the reliable ones.
+    </p>
+  );
+}
+
+const monthName = (m: string) => fmtMonth(m);
+const monthShort = (m: string, i: number) => {
+  const [y, mm] = m.split('-');
+  const short = fmtMonth(m).split(' ')[0] ?? m;
+  // the year is shown on January and on the first month, so a 12-month view never shows the same name twice without it
+  return i === 0 || mm === '01' ? `${short} ${y!.slice(2)}` : short;
+};
+
 export default function FinanceOverview() {
   const { months, setMonths } = useFinancePeriod();
   const { user, org } = useAuth();
   const show = overviewSections(user, org?.features);
+  const mayInvoices = canUse(user, org?.features, 'invoices');
   const loc = useLocation();
   const q = useFinanceReport(months);
+
+  // Invoice rows for the invoice charts, only for people who may read invoices. Both are checked against the report.
+  const invoices = useQuery({
+    queryKey: ['invoices', loc.id, 'overview', 'all'],
+    queryFn: () => api.get<InvoiceRow[]>('/invoices', { locationId: loc.id }),
+    enabled: mayInvoices,
+    placeholderData: keepWithinLocation(loc.id),
+  });
+  const open = useQuery({
+    queryKey: ['invoices', loc.id, 'overview', 'open'],
+    queryFn: () => api.get<InvoiceRow[]>('/invoices', { locationId: loc.id, status: 'open' }),
+    enabled: mayInvoices && show.owed,
+    placeholderData: keepWithinLocation(loc.id),
+  });
+
   if (q.isLoading) return <Loading />;
   if (q.error || !q.data) return <ErrorNote error={q.error} onRetry={() => void q.refetch()} retrying={q.isFetching} />;
   const r = q.data;
@@ -61,13 +100,16 @@ export default function FinanceOverview() {
   const ag = r.receivablesAging;
   const lateCents = ag.days1to30.amountCents + ag.days31to60.amountCents + ag.days61plus.amountCents;
   const lateCount = ag.days1to30.count + ag.days31to60.count + ag.days61plus.count;
-  const owedCents = lateCents + ag.current.amountCents;
+  const owedCents = agingTotal(r);
   const inChange = change(inCents, r.previous.collectedCents, true);
   const outChange = change(outCents, r.previous.expensesCents, false);
   const when = PERIOD_WORD[r.months];
+  const mix = incomeMix(r);
+  const progress = invoices.data ? invoiceProgress(invoices.data, r.from, r.to, r.totals.invoicedCents) : null;
+  const debtors = open.data ? topDebtors(open.data, owedCents) : null;
 
   return (
-    <div className={`space-y-8 transition-opacity ${updating ? 'opacity-60' : ''}`} aria-busy={updating}>
+    <div className={`space-y-10 transition-opacity ${updating ? 'opacity-60' : ''}`} aria-busy={updating}>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="max-w-2xl text-[15px]">
           In {when} you took in <strong className="num">{moneyWhole(inCents, cur)}</strong> and spent <strong className="num">{moneyWhole(outCents, cur)}</strong>
@@ -87,14 +129,129 @@ export default function FinanceOverview() {
       <div className={`grid gap-3 sm:grid-cols-2 ${show.owed ? 'xl:grid-cols-4' : 'xl:grid-cols-3'}`}>
         <Figure label="Money in" value={moneyWhole(inCents, cur)} sub={inChange.text} note={inChange.tone} />
         <Figure label="Money out" value={moneyWhole(outCents, cur)} sub={outChange.text} note={outChange.tone} />
-        <Figure
-          label={profit ? 'Profit' : 'Loss'}
-          value={moneyWhole(Math.abs(netCents), cur)}
-          tone={resultTone === 'neutral' ? undefined : resultTone}
-          sub={marginNote(netCents, inCents)}
-        />
-        {show.owed && <Figure label="Still owed to you" value={moneyWhole(owedCents, cur)} sub={lateCount > 0 ? `${moneyWhole(lateCents, cur)} is overdue` : 'Nothing is overdue'} note={lateCount > 0 ? 'text-busy' : 'text-ok'} />}
+        <Figure label={profit ? 'Profit' : 'Loss'} value={moneyWhole(Math.abs(netCents), cur)} tone={resultTone === 'neutral' ? undefined : resultTone} sub={marginNote(netCents, inCents)} />
+        {show.owed && <Figure label="Still owed to you, today" value={moneyWhole(owedCents, cur)} sub={lateCount > 0 ? `${moneyWhole(lateCents, cur)} is overdue` : 'Nothing is overdue'} note={lateCount > 0 ? 'text-busy' : 'text-ok'} />}
       </div>
+
+      {show.owed && lateCount > 0 && (
+        <p className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-busy/25 bg-busy-wash px-4 py-3 text-sm">
+          <span>
+            <strong>{lateCount} {lateCount === 1 ? 'invoice is' : 'invoices are'} overdue</strong>, {moneyWhole(lateCents, cur)} in all.
+          </span>
+          {show.invoicesLink && (
+            <Link to="/finance/invoices" className="font-semibold underline underline-offset-2">
+              See the invoices
+            </Link>
+          )}
+        </p>
+      )}
+
+      <Section title="Money in and out, month by month" aside={<Link to={withPeriod('/finance/profit-loss', months)} className="font-semibold text-ink underline underline-offset-2">Full profit and loss</Link>}>
+        <div className="surface p-4 sm:p-5">
+          <ColumnChart data={moneyByMonth(r)} currency={cur} label="Money in, money out and the net result, month by month" categoryLabel={monthName} shortLabel={monthShort} />
+          <p className="mt-3 text-xs text-slate">Money in is everything received: invoice payments, advances, security deposits kept and amenities collected. Money out is the expenses recorded. The same figures as the profit and loss.</p>
+        </div>
+      </Section>
+
+      {show.owed && (
+        <Section title="Invoiced and received, month by month">
+          <div className="surface p-4 sm:p-5">
+            <ColumnChart data={billedVsCollected(r)} currency={cur} label="What was invoiced and the money that came in, month by month" categoryLabel={monthName} shortLabel={monthShort} />
+            <p className="mt-3 text-xs text-slate">Invoiced counts invoices by the day they were issued, voided ones left out. Money in counts payments by the day they arrived, so a month's invoices are often paid the month after.</p>
+          </div>
+        </Section>
+      )}
+
+      <Section title="Where the money came from, month by month">
+        <div className="surface p-4 sm:p-5">
+          {mix.series.length ? (
+            <ColumnChart data={mix} stacked totalLabel="Total income" currency={cur} label="Income by kind, month by month" categoryLabel={monthName} shortLabel={monthShort} />
+          ) : (
+            <p className="text-sm text-slate">No income in this period.</p>
+          )}
+        </div>
+      </Section>
+
+      <div className="grid gap-10 lg:grid-cols-2">
+        <Section title="Where it went">
+          <BarList
+            rows={ranked(r.expensesByCategory.map((e) => ({ key: e.category, label: titleCase(e.category), cents: e.amountCents })))}
+            currency={cur}
+            color={MONEY_COLOR.out}
+            label="Expenses by category"
+            empty="No expenses recorded in this period."
+          />
+        </Section>
+        <Section title="How members paid" aside="Invoice payments only">
+          <BarList
+            rows={ranked(r.paymentsByMethod.map((p) => ({ key: p.method, label: METHOD_LABEL[p.method as keyof typeof METHOD_LABEL] ?? titleCase(p.method), cents: p.amountCents })))}
+            currency={cur}
+            color={MONEY_COLOR.in}
+            label="Invoice payments by method"
+            empty="No invoice payments in this period."
+          />
+        </Section>
+      </div>
+
+      {mayInvoices && (
+        <Section title="Invoices issued in this period" aside={progress ? `${progress.count} ${progress.count === 1 ? 'invoice' : 'invoices'}` : undefined}>
+          <div className="surface p-4 sm:p-5">
+            {invoices.isLoading ? (
+              <Loading />
+            ) : invoices.error ? (
+              <ErrorNote error={invoices.error} onRetry={() => void invoices.refetch()} retrying={invoices.isFetching} />
+            ) : progress && progress.totalCents > 0 ? (
+              <>
+                <p className="mb-3 text-[15px]">
+                  Of <strong className="num">{money(progress.totalCents, cur)}</strong> invoiced, <strong className="num text-ok">{money(progress.parts[0]!.cents, cur)}</strong> has been paid ({shareText(progress.parts[0]!.cents, progress.totalCents)}).
+                  {progress.parts[2]!.cents > 0 && (
+                    <>
+                      {' '}
+                      <strong className="num text-busy">{money(progress.parts[2]!.cents, cur)}</strong> is overdue.
+                    </>
+                  )}
+                </p>
+                <SegmentedBar parts={progress.parts} currency={cur} label="Invoices issued in this period: paid, to pay and overdue" />
+                {!progress.matches && <Mismatch what="invoiced figure" />}
+              </>
+            ) : (
+              <p className="text-sm text-slate">No invoices were issued in this period.</p>
+            )}
+          </div>
+        </Section>
+      )}
+
+      {show.owed && (
+        <Section title="Who still owes you" aside={`${moneyWhole(owedCents, cur)} today`}>
+          <div className="space-y-6">
+            <div className="surface p-4 sm:p-5">
+              <SegmentedBar parts={agingParts(r)} currency={cur} label="What is owed, by how late it is" />
+            </div>
+            {mayInvoices && (
+              <div>
+                <h3 className="mb-2 text-sm font-semibold">Largest balances</h3>
+                {open.isLoading ? (
+                  <Loading />
+                ) : open.error ? (
+                  <ErrorNote error={open.error} onRetry={() => void open.refetch()} retrying={open.isFetching} />
+                ) : debtors ? (
+                  <>
+                    <BarList
+                      rows={debtors.rows.map((d) => ({ ...d, sub: [d.sub, d.overdueCents > 0 ? `${money(d.overdueCents, cur)} overdue` : '', `${d.count} ${d.count === 1 ? 'invoice' : 'invoices'}`].filter(Boolean).join(' · ') }))}
+                      others={debtors.others ? { label: `${debtors.others.count} more ${debtors.others.count === 1 ? 'member' : 'members'}`, cents: debtors.others.cents } : null}
+                      currency={cur}
+                      color={MONEY_COLOR.in}
+                      label="Open balances by member"
+                      empty="Nobody owes anything."
+                    />
+                    {!debtors.matches && <Mismatch what="total owed" />}
+                  </>
+                ) : null}
+              </div>
+            )}
+          </div>
+        </Section>
+      )}
 
       {(r.amenities.owedCents > 0 || r.amenities.collectedCents > 0) && (
         <Section title="Amenities to collect" aside={`${moneyWhole(r.amenities.collectedCents, cur)} collected in ${when}`}>
@@ -162,69 +319,6 @@ export default function FinanceOverview() {
               </table>
             </div>
           )}
-        </Section>
-      )}
-
-      {show.owed && lateCount > 0 && (
-        <p className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-busy/25 bg-busy-wash px-4 py-3 text-sm">
-          <span>
-            <strong>{lateCount} {lateCount === 1 ? 'invoice is' : 'invoices are'} overdue</strong>, {moneyWhole(lateCents, cur)} in all.
-          </span>
-          {show.invoicesLink && (
-            <Link to="/finance/invoices" className="font-semibold underline underline-offset-2">
-              See the invoices
-            </Link>
-          )}
-        </p>
-      )}
-
-      <Section title="Money in and out, month by month" aside={<Link to={withPeriod('/finance/profit-loss', months)} className="font-semibold text-ink underline underline-offset-2">Full profit and loss</Link>}>
-        <div className="surface p-5">
-          <MoneyChart data={r.monthly} currency={cur} />
-        </div>
-      </Section>
-
-      <div className="grid gap-8 md:grid-cols-3">
-        <Section title="Where the money came from">
-          <Bars rows={r.incomeByKind.map((i) => ({ label: INCOME_LABEL[i.kind], cents: i.amountCents })).filter((i) => i.cents > 0)} currency={cur} />
-        </Section>
-        <Section title="Where it went">
-          <Bars rows={r.expensesByCategory.map((e) => ({ label: titleCase(e.category), cents: e.amountCents }))} currency={cur} />
-        </Section>
-        <Section title="How members paid">
-          <Bars rows={r.paymentsByMethod.map((p) => ({ label: METHOD_LABEL[p.method as keyof typeof METHOD_LABEL] ?? titleCase(p.method), cents: p.amountCents }))} currency={cur} />
-        </Section>
-      </div>
-
-      {show.owed && (
-        <Section title="Who still owes you" aside={moneyWhole(owedCents, cur)}>
-          <div className="surface-table">
-            <table className="tbl">
-              <thead>
-                <tr>
-                  <th>How late</th>
-                  <th className="r">Invoices</th>
-                  <th className="r">Amount owed</th>
-                </tr>
-              </thead>
-              <tbody>
-                {(
-                  [
-                    ['current', 'Not yet due'],
-                    ['days1to30', '1 to 30 days late'],
-                    ['days31to60', '31 to 60 days late'],
-                    ['days61plus', 'Over 60 days late'],
-                  ] as const
-                ).map(([key, label]) => (
-                  <tr key={key}>
-                    <td className={key === 'days61plus' && ag[key].count > 0 ? 'font-semibold text-busy' : ''}>{label}</td>
-                    <td className="r">{ag[key].count}</td>
-                    <td className="r font-semibold">{moneyWhole(ag[key].amountCents, cur)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
         </Section>
       )}
     </div>
