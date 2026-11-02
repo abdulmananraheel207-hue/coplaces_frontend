@@ -6,7 +6,7 @@ import { useLocation } from '../../auth';
 import { useToast } from '../../components/toast';
 import { Button, Empty, ErrorNote, Field, Input, Loading, Modal, Select } from '../../components/ui';
 import { downloadCsv, fromCents, money, titleCase, toCents } from '../../lib/format';
-import { useRefresh } from '../../lib/queries';
+import { FINANCE_KEYS, useRefresh } from '../../lib/queries';
 import { addDays, addMonths, fmtDate, todayIn } from '../../lib/time';
 import type { Expense } from '../../types';
 
@@ -33,7 +33,7 @@ function ExpenseForm({ initial, onDone }: { initial?: Expense; onDone: () => voi
     },
     onSuccess: () => {
       toast.ok(initial ? 'Expense updated' : 'Expense added');
-      void refresh('expenses', 'dashboard', 'reports');
+      void refresh(...FINANCE_KEYS);
       onDone();
     },
   });
@@ -97,7 +97,7 @@ export default function Expenses() {
     mutationFn: (id: string) => api.del(`/expenses/${id}`),
     onSuccess: () => {
       toast.ok('Expense deleted');
-      void refresh('expenses', 'dashboard', 'reports');
+      void refresh(...FINANCE_KEYS);
     },
     onError: (e) => toast.error(errorMessage(e)),
   });

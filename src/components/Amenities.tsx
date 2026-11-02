@@ -6,7 +6,7 @@ import { MemberSelect } from './MemberSelect';
 import { useToast } from './toast';
 import { Button, ErrorNote, Field, Input, Loading, Section, Select } from './ui';
 import { fromCents, money, toCents } from '../lib/format';
-import { useAmenities, useRefresh } from '../lib/queries';
+import { FINANCE_KEYS, useAmenities, useRefresh } from '../lib/queries';
 import type { Amenity, MemberDetail } from '../types';
 
 /** What the owner gives a member: the amenities they get free each day (ticked, with how many) and their meeting room credit hours. */
@@ -202,7 +202,7 @@ export function AmenityDesk() {
     onSuccess: (o) => {
       toast.ok(o.chargeCents > 0 ? `${o.quantity} ${o.name}: ${money(o.chargeCents, loc.currency)} to collect${o.freeQuantity ? `, ${o.freeQuantity} free` : ''}` : `${o.quantity} ${o.name}: free`);
       setQty('1');
-      void refresh('member', 'members', 'reports', 'finance', 'summary');
+      void refresh(...FINANCE_KEYS);
     },
   });
   if (!list.data?.length) return null;
@@ -251,7 +251,7 @@ export function CollectButton({ memberId, label = 'Collected' }: { memberId: str
     mutationFn: () => api.post('/amenities/collect', { memberId }),
     onSuccess: () => {
       toast.ok('Marked as collected');
-      void refresh('member', 'reports', 'finance', 'summary');
+      void refresh(...FINANCE_KEYS);
     },
     onError: (e) => toast.error(errorMessage(e)),
   });

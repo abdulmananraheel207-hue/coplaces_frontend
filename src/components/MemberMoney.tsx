@@ -5,7 +5,7 @@ import { useLocation } from '../auth';
 import { useToast } from './toast';
 import { Button, Chip, ErrorNote, Field, Input, Modal, Section, Select } from './ui';
 import { fromCents, METHOD_LABEL, money, toCents } from '../lib/format';
-import { useRefresh } from '../lib/queries';
+import { FINANCE_KEYS, useRefresh } from '../lib/queries';
 import { fmtDate, localDateOf } from '../lib/time';
 import type { MemberDetail, PaymentMethod } from '../types';
 
@@ -80,7 +80,7 @@ function SettleForm({ m, onDone }: { m: MemberDetail; onDone: () => void }) {
     },
     onSuccess: () => {
       toast.ok('Security deposit settled');
-      void refresh('member', 'members', 'reports');
+      void refresh(...FINANCE_KEYS);
       onDone();
     },
   });

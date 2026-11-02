@@ -11,7 +11,7 @@ import { useToast } from '../../components/toast';
 import { Avatar, Button, Chip, Empty, ErrorNote, Field, Input, Loading, Modal, PageHeader, Select, Textarea } from '../../components/ui';
 import { useMembers } from '../../components/MemberSelect';
 import { titleCase } from '../../lib/format';
-import { useAmenities, usePlans, useRefresh } from '../../lib/queries';
+import { FINANCE_KEYS, useAmenities, usePlans, useRefresh } from '../../lib/queries';
 import { planPeriodState, planPeriodWords } from '../../lib/planPeriod';
 import { fmtDate, todayIn } from '../../lib/time';
 import type { MemberStatus } from '../../types';
@@ -33,7 +33,7 @@ function NewMemberForm({ onCreated, onCancel }: { onCreated: (c: { name: string;
   const create = useMutation({
     mutationFn: () => api.post<{ name: string; email: string; tempPassword?: string }>('/members', { ...v, planId: v.planId || null, locationId: loc.id, shiftIds, deskIds: spaceIds, advanceCents: cents(money.advance) ?? 0, depositCents: cents(money.deposit) ?? 0, method: money.method, reference: money.reference, ...freeBody(free, amenities.data) }),
     onSuccess: (m) => {
-      void refresh('members', 'dashboard');
+      void refresh(...FINANCE_KEYS);
       onCreated({ name: m.name, email: m.email, password: m.tempPassword });
     },
   });

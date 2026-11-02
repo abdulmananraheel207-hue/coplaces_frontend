@@ -6,7 +6,7 @@ import { floorLabel } from '../../components/space3d/layout';
 import { useToast } from '../../components/toast';
 import { Button, Chip, Empty, ErrorNote, Field, Input, Loading, Modal, PageHeader, Select, Textarea } from '../../components/ui';
 import { fromCents, KIND_LABEL, money, toCents } from '../../lib/format';
-import { usePlans, useRefresh, useResources, useShifts } from '../../lib/queries';
+import { FINANCE_KEYS, usePlans, useRefresh, useResources, useShifts } from '../../lib/queries';
 import { toMinutes } from '../../lib/time';
 import type { Plan, Resource, ResourceKind, ShiftTemplate } from '../../types';
 
@@ -28,7 +28,7 @@ function PlanForm({ initial, onDone }: { initial?: Plan; onDone: () => void }) {
     mutationFn: () => (initial ? api.patch(`/plans/${initial.id}`, v) : api.post('/plans', { ...v, locationId: loc.id })),
     onSuccess: () => {
       toast.ok(initial ? 'Plan updated' : 'Plan added');
-      void refresh('plans', 'members');
+      void refresh(...FINANCE_KEYS, 'plans');
       onDone();
     },
   });
@@ -119,7 +119,7 @@ function ShiftForm({ plan, initial, plans, spaces, onDone }: { plan: Plan | null
     },
     onSuccess: () => {
       toast.ok(initial ? 'Shift updated' : 'Shift added');
-      void refresh('shifts', 'quote');
+      void refresh(...FINANCE_KEYS, 'shifts', 'quote');
       onDone();
     },
   });
@@ -249,7 +249,7 @@ export default function Plans() {
     mutationFn: (s: ShiftTemplate) => api.del(`/shifts/${s.id}`),
     onSuccess: () => {
       toast.ok('Shift deleted');
-      void refresh('shifts', 'quote');
+      void refresh(...FINANCE_KEYS, 'shifts', 'quote');
     },
     onError: (e) => toast.error(errorMessage(e)),
   });
@@ -258,7 +258,7 @@ export default function Plans() {
     onSuccess: () => {
       toast.ok('Plan deleted');
       setConfirming(null);
-      void refresh('plans', 'shifts', 'members', 'quote');
+      void refresh(...FINANCE_KEYS, 'plans', 'shifts', 'quote');
     },
     onError: (e) => {
       toast.error(errorMessage(e));

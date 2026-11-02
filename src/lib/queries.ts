@@ -54,6 +54,14 @@ export const useAmenities = (locationId: string, enabled = true) =>
 export const usePlans = (locationId: string) =>
   useQuery({ queryKey: ['plans', locationId], queryFn: () => api.get<Plan[]>('/plans', { locationId }) });
 
+/**
+ * Every cached query that shows money: the finance reports, the dashboard's month figures, invoices and payments,
+ * expenses, member balances and money records, contracts and their deposits, the member portal summary, and
+ * bookings (an invoice or a void changes whether a booking is billed). Every action that moves money refreshes all of them,
+ * so no screen is left showing an old figure.
+ */
+export const FINANCE_KEYS = ['reports', 'dashboard', 'invoices', 'invoice', 'payments', 'expenses', 'members', 'member', 'contracts', 'summary', 'bookings'];
+
 /** Invalidate every cached query whose first key segment is listed. */
 export function useRefresh() {
   const qc = useQueryClient();

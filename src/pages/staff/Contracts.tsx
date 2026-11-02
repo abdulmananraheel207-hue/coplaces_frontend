@@ -9,7 +9,7 @@ import { MemberSelect } from '../../components/MemberSelect';
 import { useToast } from '../../components/toast';
 import { Button, Chip, Empty, ErrorNote, Field, Input, Loading, Modal, PageHeader, Select, Textarea } from '../../components/ui';
 import { downloadCsv, fromCents, KIND_LABEL, METHOD_LABEL, money, titleCase, toCents } from '../../lib/format';
-import { useRefresh, useResources } from '../../lib/queries';
+import { FINANCE_KEYS, useRefresh, useResources } from '../../lib/queries';
 import { fmtDate, localDateOf, todayIn } from '../../lib/time';
 import type { Contract, DepositEntry, PaymentMethod } from '../../types';
 
@@ -48,7 +48,7 @@ function ContractForm({ initial, onDone }: { initial?: Contract; onDone: () => v
     },
     onSuccess: () => {
       toast.ok(initial ? 'Contract updated' : 'Contract saved as a draft');
-      void refresh('contracts');
+      void refresh(...FINANCE_KEYS);
       onDone();
     },
   });
@@ -145,7 +145,7 @@ function ReceiveForm({ contract, what, onDone }: { contract: Contract; what: 'ad
     mutationFn: () => (what === 'advance' ? api.post(`/contracts/${contract.id}/advance`, { method, reference }) : api.post(`/contracts/${contract.id}/deposit`, { action: 'receive', method, reference })),
     onSuccess: () => {
       toast.ok(what === 'advance' ? 'Advance received' : 'Security deposit received');
-      void refresh('contracts', 'reports');
+      void refresh(...FINANCE_KEYS);
       onDone();
     },
   });
@@ -234,7 +234,7 @@ function RefundForm({ contract, onDone }: { contract: Contract; onDone: () => vo
     },
     onSuccess: () => {
       toast.ok('Security deposit settled');
-      void refresh('contracts', 'reports');
+      void refresh(...FINANCE_KEYS);
       onDone();
     },
   });
@@ -282,7 +282,7 @@ function Contracts() {
     mutationFn: (v: { id: string; path: 'activate' | 'end' | 'cancel' | 'deposit'; body?: object; ok: string }) => api.post(`/contracts/${v.id}/${v.path}`, v.body),
     onSuccess: (_d, v) => {
       toast.ok(v.ok);
-      void refresh('contracts', 'assignments', 'resources', 'members', 'dashboard');
+      void refresh(...FINANCE_KEYS, 'assignments', 'resources');
     },
     onError: (e) => toast.error(errorMessage(e)),
   });

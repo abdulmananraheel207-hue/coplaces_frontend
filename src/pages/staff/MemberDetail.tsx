@@ -12,7 +12,7 @@ import { Button, Chip, Empty, ErrorNote, Field, Input, Ledger, Loading, Modal, P
 import { KIND_LABEL, money, titleCase } from '../../lib/format';
 import { can } from '../../lib/permissions';
 import { planPeriodState, planPeriodWords } from '../../lib/planPeriod';
-import { useAmenities, usePlans, useRefresh } from '../../lib/queries';
+import { FINANCE_KEYS, useAmenities, usePlans, useRefresh } from '../../lib/queries';
 import { fmtDate, fmtDay, fmtTime, localDateOf, todayIn } from '../../lib/time';
 import type { Booking, InvoiceRow, MemberDetail as Detail, MemberStatus } from '../../types';
 import { statusTone } from './Members';
@@ -57,7 +57,7 @@ function EditForm({ m, onDone }: { m: Detail; onDone: () => void }) {
     },
     onSuccess: () => {
       toast.ok('Member updated');
-      void refresh('member', 'members', 'bookings', 'invoices', 'dashboard');
+      void refresh(...FINANCE_KEYS);
       onDone();
     },
   });
@@ -160,7 +160,7 @@ export default function MemberDetail() {
     mutationFn: () => api.post<{ start: string; end: string }>(`/members/${id}/renew`, {}),
     onSuccess: (r) => {
       toast.ok(`Renewed from ${fmtDate(r.start)} to ${fmtDate(r.end)}`);
-      void refresh('member', 'members', 'bookings', 'invoices', 'dashboard');
+      void refresh(...FINANCE_KEYS);
     },
     onError: (e) => toast.error(errorMessage(e)),
   });
@@ -168,7 +168,7 @@ export default function MemberDetail() {
     mutationFn: () => api.del(`/members/${id}`),
     onSuccess: () => {
       toast.ok('Member deleted');
-      void refresh('members', 'bookings', 'invoices', 'dashboard', 'attendance');
+      void refresh(...FINANCE_KEYS, 'attendance');
       navigate('/members');
     },
     onError: (e) => {

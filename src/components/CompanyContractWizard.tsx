@@ -6,7 +6,7 @@ import { floorLabel } from './space3d/layout';
 import { useToast } from './toast';
 import { Button, ErrorNote, Field, Input, Loading, Segmented, Select, Textarea } from './ui';
 import { KIND_LABEL, money, toCents } from '../lib/format';
-import { useRefresh } from '../lib/queries';
+import { FINANCE_KEYS, useRefresh } from '../lib/queries';
 import { todayIn } from '../lib/time';
 import type { AvailableSpace } from '../types';
 
@@ -104,7 +104,7 @@ export function CompanyContractWizard({ onDone }: { onDone: () => void }) {
     },
     onSuccess: (started) => {
       toast.ok(started ? 'Contract started. The employees can sign in.' : 'Contract saved as a draft');
-      void refresh('contracts', 'resources', 'members', 'assignments', 'dashboard');
+      void refresh(...FINANCE_KEYS, 'resources', 'assignments');
       onDone();
     },
   });

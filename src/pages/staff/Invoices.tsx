@@ -9,7 +9,7 @@ import { MemberSelect } from '../../components/MemberSelect';
 import { useToast } from '../../components/toast';
 import { Button, Chip, Empty, ErrorNote, Field, Input, Loading, Modal, Segmented, Textarea } from '../../components/ui';
 import { downloadCsv, fromCents, money, titleCase, toCents } from '../../lib/format';
-import { useRefresh } from '../../lib/queries';
+import { FINANCE_KEYS, useRefresh } from '../../lib/queries';
 import { addDays, fmtDate, todayIn } from '../../lib/time';
 import type { InvoiceRow } from '../../types';
 
@@ -39,7 +39,7 @@ function NewInvoiceForm({ memberId: initialMember, onDone }: { memberId: string;
     mutationFn: () => api.post<{ id: string }>('/invoices', { memberId, issueDate: today, dueDate, notes, items: parsed }),
     onSuccess: (inv) => {
       toast.ok('Invoice created');
-      void refresh('invoices', 'dashboard', 'member');
+      void refresh(...FINANCE_KEYS);
       onDone(inv.id);
     },
   });
@@ -121,7 +121,7 @@ function GenerateForm({ onDone }: { onDone: () => void }) {
     onSuccess: (r) => {
       setResult(r);
       toast.ok(`${r.created} invoice${r.created === 1 ? '' : 's'} created`);
-      void refresh('invoices', 'dashboard', 'member');
+      void refresh(...FINANCE_KEYS);
     },
   });
   return result ? (

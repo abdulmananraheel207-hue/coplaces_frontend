@@ -5,11 +5,11 @@ import { useLocation } from '../auth';
 import { useToast } from './toast';
 import { Button, ErrorNote, Field, Input, Segmented, Select, Textarea } from './ui';
 import { fromCents, KIND_LABEL, toCents } from '../lib/format';
-import { useRefresh } from '../lib/queries';
+import { FINANCE_KEYS, useRefresh } from '../lib/queries';
 import { fmtDate, todayIn } from '../lib/time';
 import type { AvailableSpace, Contract } from '../types';
 
-const REFRESH = ['contracts', 'resources', 'members', 'assignments', 'dashboard'] as const;
+const REFRESH = [...FINANCE_KEYS, 'resources', 'assignments'];
 
 /** Who is on a company contract, with a way to add someone or let someone go. */
 export function ContractPeople({ contract }: { contract: Contract }) {

@@ -6,7 +6,7 @@ import { api, errorMessage } from '../api';
 import { useAuth } from '../auth';
 import { can } from '../lib/permissions';
 import { fromCents, METHOD_LABEL, money, titleCase, toCents } from '../lib/format';
-import { useRefresh } from '../lib/queries';
+import { FINANCE_KEYS, useRefresh } from '../lib/queries';
 import { fmtDate, localDateOf } from '../lib/time';
 import type { InvoiceDetail, PaymentMethod } from '../types';
 import { useToast } from './toast';
@@ -28,7 +28,7 @@ function PaymentForm({ inv, onDone }: { inv: InvoiceDetail; onDone: () => void }
     },
     onSuccess: () => {
       toast.ok('Payment recorded');
-      void refresh('invoice', 'invoices', 'payments', 'dashboard', 'member', 'reports');
+      void refresh(...FINANCE_KEYS);
       onDone();
     },
   });
@@ -88,7 +88,7 @@ export function InvoiceView({ backTo, staff }: { backTo: string; staff: boolean 
     mutationFn: () => api.post(`/invoices/${id}/void`),
     onSuccess: () => {
       toast.ok('Invoice voided');
-      void refresh('invoice', 'invoices', 'dashboard', 'member', 'bookings');
+      void refresh(...FINANCE_KEYS);
     },
     onError: (e) => toast.error(errorMessage(e)),
   });
@@ -96,7 +96,7 @@ export function InvoiceView({ backTo, staff }: { backTo: string; staff: boolean 
     mutationFn: (paymentId: string) => api.del(`/payments/${paymentId}`),
     onSuccess: () => {
       toast.ok('Payment removed');
-      void refresh('invoice', 'invoices', 'payments', 'dashboard', 'member', 'reports');
+      void refresh(...FINANCE_KEYS);
     },
     onError: (e) => toast.error(errorMessage(e)),
   });
