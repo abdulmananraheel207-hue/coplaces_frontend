@@ -8,7 +8,9 @@ export function useWidth<T extends HTMLElement>() {
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
-    const measure = () => setWidth(Math.floor(el.getBoundingClientRect().width));
+    // clientWidth is the laid-out width. getBoundingClientRect would include transforms, and the page's entry animation
+    // scales the page for a moment, which left charts drawn a little too narrow (a resize never fires for a transform).
+    const measure = () => setWidth(el.clientWidth);
     measure();
     if (typeof ResizeObserver === 'undefined') return;
     const ro = new ResizeObserver(measure);
@@ -54,21 +56,21 @@ export interface Tip {
 /** The floating readout over a chart. It only repeats values the table view also has. */
 export function Tooltip({ tip, width }: { tip: Tip | null; width: number }) {
   if (!tip) return null;
-  const left = Math.max(4, Math.min(tip.x + 12, width - 200));
+  const left = Math.max(4, Math.min(tip.x + 12, width - 236));
   return (
-    <div role="status" className="pointer-events-none absolute z-10 w-48 rounded-lg bg-paper px-3 py-2 text-xs shadow-[var(--shadow-lift)] ring-1 ring-line-strong backdrop-blur-md" style={{ left, top: Math.max(0, tip.y - 8) }}>
+    <div role="status" className="pointer-events-none absolute z-10 w-56 rounded-lg bg-paper px-3 py-2 text-xs shadow-[var(--shadow-lift)] ring-1 ring-line-strong backdrop-blur-md" style={{ left, top: Math.max(0, tip.y - 8) }}>
       <p className="mb-1 font-semibold" style={{ color: CHROME.text }}>
         {tip.title}
       </p>
       <ul className="space-y-0.5">
         {tip.rows.map((r) => (
-          <li key={r.label} className="flex items-center gap-2">
+          <li key={r.label} className="flex items-baseline gap-2">
             {/* Tooltip rows are keyed with a short stroke, never a filled box. */}
             <span aria-hidden className="inline-block h-0.5 w-3 shrink-0 rounded-full" style={{ background: r.color }} />
             <strong className="num" style={{ color: CHROME.text }}>
               {r.value}
             </strong>
-            <span className="truncate" style={{ color: CHROME.muted }}>
+            <span className="min-w-0" style={{ color: CHROME.muted }}>
               {r.label}
             </span>
           </li>

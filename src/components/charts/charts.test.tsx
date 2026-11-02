@@ -7,12 +7,12 @@ import { ColumnChart } from './ColumnChart';
 import { SegmentedBar } from './SegmentedBar';
 
 // jsdom lays nothing out, so give every element a width for the charts to draw into.
-const realRect = HTMLElement.prototype.getBoundingClientRect;
+// clientWidth is defined on Element.prototype; shadow it on HTMLElement for these tests, then take the shadow away.
 beforeAll(() => {
-  HTMLElement.prototype.getBoundingClientRect = () => ({ width: 600, height: 240, top: 0, left: 0, right: 600, bottom: 240, x: 0, y: 0, toJSON: () => ({}) }) as DOMRect;
+  Object.defineProperty(HTMLElement.prototype, 'clientWidth', { configurable: true, get: () => 600 });
 });
 afterAll(() => {
-  HTMLElement.prototype.getBoundingClientRect = realRect;
+  delete (HTMLElement.prototype as unknown as Record<string, unknown>).clientWidth;
 });
 afterEach(cleanup);
 

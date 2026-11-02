@@ -191,3 +191,10 @@ describe('the axis', () => {
     expect(tickFormatter([0, 2_000_000])(1_500_000)).toBe('1.5M');
   });
 });
+
+describe('axis steps', () => {
+  it('uses a 2.5 step where 5 would leave the columns short', () => {
+    // Money in about 510K, a loss of about 380K: steps of 250K, not 500K.
+    expect(niceTicks(-380, 510).ticks).toEqual([-500, -250, 0, 250, 500, 750]);
+  });
+});

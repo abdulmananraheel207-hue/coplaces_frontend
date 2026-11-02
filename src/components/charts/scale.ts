@@ -1,12 +1,12 @@
 /** Axis maths for the charts: round tick values and how to write them. Everything is in whole currency units. */
 
-/** A step of 1, 2 or 5 times a power of ten that splits `span` into about `count` pieces. */
+/** A step of 1, 2, 2.5 or 5 times a power of ten that splits `span` into about `count` pieces. */
 export function niceStep(span: number, count = 4) {
   if (!(span > 0)) return 1;
   const raw = span / count;
   const pow = 10 ** Math.floor(Math.log10(raw));
   const f = raw / pow;
-  return (f <= 1 ? 1 : f <= 2 ? 2 : f <= 5 ? 5 : 10) * pow;
+  return (f <= 1 ? 1 : f <= 2 ? 2 : f <= 2.5 ? 2.5 : f <= 5 ? 5 : 10) * pow;
 }
 
 /**
