@@ -9,8 +9,8 @@ import { overviewSections } from '../../lib/access';
 import { downloadCsv, METHOD_LABEL, money, moneyWhole, titleCase } from '../../lib/format';
 import { depositRows } from '../../components/ContractPrint';
 import { fmtDate, localDateOf } from '../../lib/time';
-import type { FinanceReport } from '../../types';
 import { PERIOD_WORD, PeriodPicker, useFinancePeriod, useFinanceReport } from './Finance';
+import { withPeriod } from '../../lib/financePeriod';
 
 export const INCOME_LABEL = { subscription: 'Memberships and plans', manual: 'Rooms, desks and other charges', kept_deposit: 'Security deposits we kept', advance: 'Advance rent from contracts', amenities: 'Amenities (tea, coffee, food)' } as const;
 
@@ -50,7 +50,9 @@ export default function FinanceOverview() {
   const q = useFinanceReport(months);
   if (q.isLoading) return <Loading />;
   if (q.error || !q.data) return <ErrorNote error={q.error} onRetry={() => void q.refetch()} retrying={q.isFetching} />;
-  const r: FinanceReport = q.data;
+  const r = q.data;
+  // While a new period loads, the figures on screen are still the old period's, so the words follow the figures.
+  const updating = q.isPlaceholderData;
   const cur = r.currency;
   const { collectedCents: inCents, expensesCents: outCents, netCents } = r.totals;
   const profit = netCents >= 0;
@@ -61,10 +63,10 @@ export default function FinanceOverview() {
   const owedCents = lateCents + ag.current.amountCents;
   const inChange = change(inCents, r.previous.collectedCents, true);
   const outChange = change(outCents, r.previous.expensesCents, false);
-  const when = PERIOD_WORD[months] ?? 'this period';
+  const when = PERIOD_WORD[r.months];
 
   return (
-    <div className="space-y-8">
+    <div className={`space-y-8 transition-opacity ${updating ? 'opacity-60' : ''}`} aria-busy={updating}>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="max-w-2xl text-[15px]">
           In {when} you took in <strong className="num">{moneyWhole(inCents, cur)}</strong> and spent <strong className="num">{moneyWhole(outCents, cur)}</strong>
@@ -78,7 +80,7 @@ export default function FinanceOverview() {
             </>
           )}
         </p>
-        <PeriodPicker months={months} setMonths={setMonths} />
+        <PeriodPicker months={months} setMonths={setMonths} updating={updating} />
       </div>
 
       <div className={`grid gap-3 sm:grid-cols-2 ${show.owed ? 'xl:grid-cols-4' : 'xl:grid-cols-3'}`}>
@@ -175,7 +177,7 @@ export default function FinanceOverview() {
         </p>
       )}
 
-      <Section title="Money in and out, month by month" aside={<Link to="/finance/profit-loss" className="font-semibold text-ink underline underline-offset-2">Full profit and loss</Link>}>
+      <Section title="Money in and out, month by month" aside={<Link to={withPeriod('/finance/profit-loss', months)} className="font-semibold text-ink underline underline-offset-2">Full profit and loss</Link>}>
         <div className="surface p-5">
           <MoneyChart data={r.monthly} currency={cur} />
         </div>

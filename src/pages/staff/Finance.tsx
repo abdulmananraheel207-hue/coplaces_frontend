@@ -1,46 +1,76 @@
-import { useState } from 'react';
-import { Navigate, Outlet, useOutletContext } from 'react-router';
+import { useCallback } from 'react';
+import { Navigate, Outlet, useSearchParams } from 'react-router';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../../api';
 import { useAuth, useCanUse, useLocation } from '../../auth';
 import { financeHome } from '../../lib/access';
+import { DEFAULT_PERIOD, keepWithinLocation, parsePeriod, periodRange, withPeriod, type Period } from '../../lib/financePeriod';
 import { PageHeader, Segmented, Tabs } from '../../components/ui';
-import { addMonths, todayIn } from '../../lib/time';
+import { todayIn } from '../../lib/time';
 import type { FinanceReport } from '../../types';
 
-interface Period {
-  months: string;
-  setMonths: (m: string) => void;
+export { PERIOD_WORD } from '../../lib/financePeriod';
+
+/**
+ * The time span shared by the overview and the profit and loss. It lives in the address (?months=3), so it survives a
+ * reload, can be shared as a link, and stays the same when moving between the two.
+ */
+export function useFinancePeriod() {
+  const [params, setParams] = useSearchParams();
+  const months = parsePeriod(params.get('months'));
+  const setMonths = useCallback(
+    (m: Period) =>
+      setParams(
+        (cur) => {
+          const next = new URLSearchParams(cur);
+          if (m === DEFAULT_PERIOD) next.delete('months');
+          else next.set('months', m);
+          return next;
+        },
+        { replace: true },
+      ),
+    [setParams],
+  );
+  return { months, setMonths };
 }
 
-/** The time span shared by the overview and the profit and loss, so switching tabs keeps it. */
-export const useFinancePeriod = () => useOutletContext<Period>();
+/** A finance report, remembering which period it is for. */
+export type PeriodReport = FinanceReport & { months: Period };
 
-export function useFinanceReport(months: string) {
+/**
+ * The report for a period. While a newly chosen period loads, the figures already on screen stay there (marked as
+ * updating) instead of the page going blank; `isPlaceholderData` says when that is happening.
+ */
+export function useFinanceReport(months: Period) {
   const loc = useLocation();
-  const today = todayIn(loc.timezone);
-  const from = `${addMonths(today.slice(0, 7), -(Number(months) - 1))}-01`;
+  const { from, to } = periodRange(months, todayIn(loc.timezone));
   return useQuery({
-    queryKey: ['reports', loc.id, from, today],
-    queryFn: () => api.get<FinanceReport>('/reports/finance', { locationId: loc.id, from, to: today }),
+    queryKey: ['reports', loc.id, from, to],
+    queryFn: async (): Promise<PeriodReport> => ({ ...(await api.get<FinanceReport>('/reports/finance', { locationId: loc.id, from, to })), months }),
+    placeholderData: keepWithinLocation(loc.id),
   });
 }
 
-export const PERIOD_WORD: Record<string, string> = { '1': 'this month', '3': 'the last 3 months', '6': 'the last 6 months', '12': 'the last 12 months' };
-
-export function PeriodPicker({ months, setMonths }: Period) {
+export function PeriodPicker({ months, setMonths, updating }: { months: Period; setMonths: (m: Period) => void; updating?: boolean }) {
   return (
-    <Segmented
-      label="Period"
-      value={months}
-      onChange={setMonths}
-      options={[
-        { value: '1', label: 'This month' },
-        { value: '3', label: '3 months' },
-        { value: '6', label: '6 months' },
-        { value: '12', label: '12 months' },
-      ]}
-    />
+    <div className="flex items-center gap-3">
+      {updating && (
+        <span role="status" className="text-sm text-slate">
+          Updating…
+        </span>
+      )}
+      <Segmented<Period>
+        label="Period"
+        value={months}
+        onChange={setMonths}
+        options={[
+          { value: '1', label: 'This month' },
+          { value: '3', label: '3 months' },
+          { value: '6', label: '6 months' },
+          { value: '12', label: '12 months' },
+        ]}
+      />
+    </div>
   );
 }
 
@@ -48,9 +78,14 @@ export function FinanceLayout() {
   const invoicing = useCanUse('invoices');
   const expenses = useCanUse('expenses');
   const reports = useCanUse('reports');
-  const [months, setMonths] = useState('6');
+  const { months } = useFinancePeriod();
   const tabs = [
-    ...(reports ? [{ to: '/finance/overview', label: 'Overview' }, { to: '/finance/profit-loss', label: 'Profit and loss' }] : []),
+    ...(reports
+      ? [
+          { to: withPeriod('/finance/overview', months), label: 'Overview' },
+          { to: withPeriod('/finance/profit-loss', months), label: 'Profit and loss' },
+        ]
+      : []),
     ...(invoicing ? [{ to: '/finance/invoices', label: 'Invoices' }, { to: '/finance/payments', label: 'Payments' }] : []),
     ...(expenses ? [{ to: '/finance/expenses', label: 'Expenses' }] : []),
   ];
@@ -60,7 +95,7 @@ export function FinanceLayout() {
         <PageHeader title="Finance" sub="Income, costs and profit for this space, and the invoices behind them." />
       </div>
       <Tabs items={tabs} />
-      <Outlet context={{ months, setMonths } satisfies Period} />
+      <Outlet />
     </>
   );
 }

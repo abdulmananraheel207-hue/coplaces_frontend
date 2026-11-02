@@ -13,6 +13,7 @@ export default function ProfitLoss() {
   if (q.isLoading) return <Loading />;
   if (q.error || !q.data) return <ErrorNote error={q.error} onRetry={() => void q.refetch()} retrying={q.isFetching} />;
   const r = q.data;
+  const updating = q.isPlaceholderData;
   const cur = r.currency;
   const pl = r.profitLoss;
   const n = pl.months.length;
@@ -48,9 +49,9 @@ export default function ProfitLoss() {
 
   const heading = 'bg-plaster font-semibold';
   return (
-    <div className="space-y-5">
+    <div className={`space-y-5 transition-opacity ${updating ? 'opacity-60' : ''}`} aria-busy={updating}>
       <div className="no-print flex flex-wrap items-center justify-between gap-3">
-        <PeriodPicker months={months} setMonths={setMonths} />
+        <PeriodPicker months={months} setMonths={setMonths} updating={updating} />
         <Button onClick={exportCsv}>
           <Download size={15} /> Export to a spreadsheet
         </Button>
