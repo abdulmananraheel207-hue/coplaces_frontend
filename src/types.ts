@@ -175,8 +175,8 @@ export interface Resource {
   name: string;
   floor: string;
   capacity: number;
+  /** The owner's hourly price, from the Pricing tab. Zero means it cannot be booked by the hour: it is used through plans and contracts. */
   hourlyRateCents: number;
-  dailyRateCents: number;
   amenities: string;
   status: ResourceStatus;
   notes: string;
@@ -196,12 +196,6 @@ export interface Resource {
   closeTime: string | null;
   /** Weekdays it is shut on top of the location's, like "0,6". */
   closedWeekdays: string | null;
-  offPeakRateCents: number | null;
-  peakStart: string | null;
-  peakEnd: string | null;
-  halfDayRateCents: number | null;
-  fullDayRateCents: number | null;
-  noPlanRateCents: number | null;
   /** The photos of it, in the order they were added. */
   photoIds?: string[];
   occupied?: boolean;
@@ -243,10 +237,7 @@ export type PriceBasis =
   | { type: 'plan' }
   | { type: 'minutes'; freeMinutes: number; billableMinutes: number }
   | { type: 'shift'; name: string }
-  | { type: 'hourly'; rateCents: number }
-  | { type: 'daily'; rateCents: number }
-  | { type: 'dayshare'; rateCents: number }
-  | { type: 'rates' };
+  | { type: 'hourly'; rateCents: number };
 
 export interface Schedule {
   date: string;
@@ -277,6 +268,8 @@ export interface Booking {
   checkedInAt: string | null;
   /** A hot desk booked from opening to closing; anything shorter is part of a day. */
   allDay: boolean;
+  /** Made by the member's plan (its shifts) or booked by hand. */
+  source: 'manual' | 'plan';
   resourceName: string;
   resourceKind: ResourceKind;
   memberName: string;
@@ -398,6 +391,7 @@ export interface Dashboard {
     dedicatedDesks: { total: number; assigned: number };
     offices: { total: number; assigned: number };
     storage: { total: number; assigned: number };
+    overstaying: Overstay[];
   };
   finance: {
     mrrCents: number;
@@ -448,6 +442,29 @@ export interface AmenityAllowance {
   usedToday: number;
 }
 
+/** A member still in the building after their booking or shift ended. */
+export interface Overstay {
+  attendanceId: string;
+  memberId: string;
+  memberName: string;
+  resourceName: string;
+  endedAt: string;
+  minutesOver: number;
+  checkedInAt: string;
+}
+
+export interface AmenityRequest {
+  id: string;
+  memberId: string;
+  memberName: string;
+  name: string;
+  priceCents: number;
+  quantity: number;
+  status: 'pending' | 'served' | 'declined' | 'cancelled';
+  reason: string;
+  createdAt: string;
+}
+
 export interface AmenityOrder {
   id: string;
   memberId: string;
@@ -469,6 +486,8 @@ export interface MemberSummary {
   meetingMinutes: { included: number; used: number };
   amenities: AmenityAllowance[];
   amenityDueCents: number;
+  amenityRequests: AmenityRequest[];
+  overstay: Overstay | null;
   checkedIn: { id: string; checkInAt: string } | null;
   upcomingBookings: Booking[];
   openInvoices: InvoiceRow[];
@@ -745,7 +764,7 @@ export interface Occupancy {
 
 /** One thing in a saved arrangement, positioned relative to the arrangement's own corner. */
 export type TemplateThing =
-  | { type: 'resource'; kind: ResourceKind; style: string; name: string; capacity: number; hourlyRateCents: number; dailyRateCents: number; amenities: string; x: number; z: number; rot: number; w: number | null; d: number | null }
+  | { type: 'resource'; kind: ResourceKind; style: string; name: string; capacity: number; amenities: string; x: number; z: number; rot: number; w: number | null; d: number | null }
   | { type: 'object'; object: FloorObjectType; label: string; variant: ObjectVariant; tint: ObjectTint; x: number; z: number; rot: number; w: number | null; d: number | null };
 
 export interface FloorTemplate {

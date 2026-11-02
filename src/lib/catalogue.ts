@@ -15,9 +15,6 @@ export interface StyleDef {
   /** What a new one is called until the owner renames it: "Huddle Room 3". */
   prefix: string;
   capacity: number;
-  /** Starting price in minor units, for rooms billed by the hour and desks billed by the day. */
-  hourly?: number;
-  daily?: number;
   /** Footprint in metres for a given number of seats. */
   size: (capacity: number) => { w: number; d: number };
 }
@@ -26,25 +23,25 @@ const desk = (w: number, d: number) => () => ({ w, d });
 
 export const STYLES: Record<ResourceKind, StyleDef[]> = {
   room: [
-    { key: 'meeting', label: 'Meeting room', blurb: 'Glass room with a table', prefix: 'Meeting Room', capacity: 6, hourly: 200_000, size: (c) => ({ w: clamp(2.4 + c * 0.5, 2.9, 8.4), d: clamp(2.4 + c * 0.28, 2.9, 5.6) }) },
-    { key: 'phone_booth', label: 'Phone booth', blurb: 'One-person soundproof pod', prefix: 'Phone Booth', capacity: 1, hourly: 80_000, size: desk(2.9, 2.9) },
-    { key: 'huddle', label: 'Huddle room', blurb: 'Soft seating and a screen', prefix: 'Huddle Room', capacity: 4, hourly: 150_000, size: (c) => ({ w: clamp(3.2 + c * 0.4, 3.6, 6), d: clamp(2.6 + c * 0.25, 3, 4.6) }) },
-    { key: 'training', label: 'Training room', blurb: 'Rows of seats facing a screen', prefix: 'Training Room', capacity: 12, hourly: 350_000, size: (c) => ({ w: clamp(4 + c * 0.35, 5.4, 10), d: clamp(3.5 + c * 0.25, 4.6, 8) }) },
-    { key: 'studio', label: 'Podcast studio', blurb: 'Soundproofed, with mics and a mixing desk', prefix: 'Studio', capacity: 4, hourly: 250_000, size: (c) => ({ w: clamp(3 + c * 0.3, 3.6, 6), d: clamp(2.8 + c * 0.2, 3.4, 5) }) },
-    { key: 'interview', label: 'Interview room', blurb: 'Small private room for hiring and calls', prefix: 'Interview Room', capacity: 3, hourly: 100_000, size: (c) => ({ w: clamp(2.6 + c * 0.3, 3, 4.4), d: 2.9 }) },
-    { key: 'focus', label: 'Quiet focus room', blurb: 'One desk, silence and a door', prefix: 'Focus Room', capacity: 1, hourly: 90_000, size: desk(2.9, 2.9) },
-    { key: 'video_call', label: 'Video-call room', blurb: 'Camera, screen and good light', prefix: 'Call Room', capacity: 4, hourly: 180_000, size: (c) => ({ w: clamp(3 + c * 0.35, 3.4, 5.6), d: clamp(2.6 + c * 0.2, 3, 4.2) }) },
+    { key: 'meeting', label: 'Meeting room', blurb: 'Glass room with a table', prefix: 'Meeting Room', capacity: 6, size: (c) => ({ w: clamp(2.4 + c * 0.5, 2.9, 8.4), d: clamp(2.4 + c * 0.28, 2.9, 5.6) }) },
+    { key: 'phone_booth', label: 'Phone booth', blurb: 'One-person soundproof pod', prefix: 'Phone Booth', capacity: 1, size: desk(2.9, 2.9) },
+    { key: 'huddle', label: 'Huddle room', blurb: 'Soft seating and a screen', prefix: 'Huddle Room', capacity: 4, size: (c) => ({ w: clamp(3.2 + c * 0.4, 3.6, 6), d: clamp(2.6 + c * 0.25, 3, 4.6) }) },
+    { key: 'training', label: 'Training room', blurb: 'Rows of seats facing a screen', prefix: 'Training Room', capacity: 12, size: (c) => ({ w: clamp(4 + c * 0.35, 5.4, 10), d: clamp(3.5 + c * 0.25, 4.6, 8) }) },
+    { key: 'studio', label: 'Podcast studio', blurb: 'Soundproofed, with mics and a mixing desk', prefix: 'Studio', capacity: 4, size: (c) => ({ w: clamp(3 + c * 0.3, 3.6, 6), d: clamp(2.8 + c * 0.2, 3.4, 5) }) },
+    { key: 'interview', label: 'Interview room', blurb: 'Small private room for hiring and calls', prefix: 'Interview Room', capacity: 3, size: (c) => ({ w: clamp(2.6 + c * 0.3, 3, 4.4), d: 2.9 }) },
+    { key: 'focus', label: 'Quiet focus room', blurb: 'One desk, silence and a door', prefix: 'Focus Room', capacity: 1, size: desk(2.9, 2.9) },
+    { key: 'video_call', label: 'Video-call room', blurb: 'Camera, screen and good light', prefix: 'Call Room', capacity: 4, size: (c) => ({ w: clamp(3 + c * 0.35, 3.4, 5.6), d: clamp(2.6 + c * 0.2, 3, 4.2) }) },
   ],
   corporate_room: [
-    { key: 'boardroom', label: 'Corporate boardroom', blurb: 'Long table for company meetings', prefix: 'Corporate Boardroom', capacity: 16, hourly: 900_000, size: (c) => ({ w: clamp(4 + c * 0.45, 7, 12), d: clamp(3 + c * 0.25, 5, 8) }) },
-    { key: 'training_hall', label: 'Corporate training hall', blurb: 'Hall for events and training days', prefix: 'Corporate Hall', capacity: 30, hourly: 1_200_000, size: (c) => ({ w: clamp(5 + c * 0.2, 8, 14), d: clamp(4 + c * 0.15, 6, 10) }) },
-    { key: 'event_hall', label: 'Event hall', blurb: 'Stage, screen and rows of seats', prefix: 'Event Hall', capacity: 80, hourly: 2_000_000, size: (c) => ({ w: clamp(7 + c * 0.1, 10, 18), d: clamp(5.5 + c * 0.07, 8, 12) }) },
+    { key: 'boardroom', label: 'Corporate boardroom', blurb: 'Long table for company meetings', prefix: 'Corporate Boardroom', capacity: 16, size: (c) => ({ w: clamp(4 + c * 0.45, 7, 12), d: clamp(3 + c * 0.25, 5, 8) }) },
+    { key: 'training_hall', label: 'Corporate training hall', blurb: 'Hall for events and training days', prefix: 'Corporate Hall', capacity: 30, size: (c) => ({ w: clamp(5 + c * 0.2, 8, 14), d: clamp(4 + c * 0.15, 6, 10) }) },
+    { key: 'event_hall', label: 'Event hall', blurb: 'Stage, screen and rows of seats', prefix: 'Event Hall', capacity: 80, size: (c) => ({ w: clamp(7 + c * 0.1, 10, 18), d: clamp(5.5 + c * 0.07, 8, 12) }) },
   ],
   hot_desk: [
-    { key: 'standard', label: 'Hot desk', blurb: 'Bookable desk with a monitor', prefix: 'Hot Desk', capacity: 1, daily: 150_000, size: desk(1.58, 1.49) },
-    { key: 'standing', label: 'Standing hot desk', blurb: 'Height-adjustable, no chair', prefix: 'Standing Desk', capacity: 1, daily: 170_000, size: desk(1.58, 1.3) },
-    { key: 'corner', label: 'Corner hot desk', blurb: 'L-shaped desk with more space', prefix: 'Corner Desk', capacity: 1, daily: 180_000, size: desk(1.95, 1.65) },
-    { key: 'day_office', label: 'Day office', blurb: 'A private room booked for the day', prefix: 'Day Office', capacity: 3, daily: 450_000, size: (c) => ({ w: clamp(2.8 + c * 0.4, 3.4, 5.6), d: 3.2 }) },
+    { key: 'standard', label: 'Hot desk', blurb: 'Bookable desk with a monitor', prefix: 'Hot Desk', capacity: 1, size: desk(1.58, 1.49) },
+    { key: 'standing', label: 'Standing hot desk', blurb: 'Height-adjustable, no chair', prefix: 'Standing Desk', capacity: 1, size: desk(1.58, 1.3) },
+    { key: 'corner', label: 'Corner hot desk', blurb: 'L-shaped desk with more space', prefix: 'Corner Desk', capacity: 1, size: desk(1.95, 1.65) },
+    { key: 'day_office', label: 'Day office', blurb: 'A private room booked for the day', prefix: 'Day Office', capacity: 3, size: (c) => ({ w: clamp(2.8 + c * 0.4, 3.4, 5.6), d: 3.2 }) },
   ],
   dedicated_desk: [
     { key: 'standard', label: 'Dedicated desk', blurb: 'Assigned to one member', prefix: 'Desk D', capacity: 1, size: desk(1.58, 1.49) },
@@ -64,6 +61,8 @@ export const STYLES: Record<ResourceKind, StyleDef[]> = {
 };
 
 export const isRoomKind = (kind: ResourceKind) => kind === 'room' || kind === 'corporate_room';
+/** The rooms a member may ask for: meeting rooms and quiet focus rooms. The owner books everything else (board rooms, halls, studios) for them. */
+export const isMemberRoom = (r: { kind: ResourceKind; style: string }) => r.kind === 'room' && (r.style === '' || r.style === 'meeting' || r.style === 'focus');
 export const isDeskKind = (kind: ResourceKind) => kind === 'hot_desk' || kind === 'dedicated_desk';
 export const isAssignedKind = (kind: ResourceKind) => kind === 'dedicated_desk' || kind === 'office' || kind === 'storage';
 

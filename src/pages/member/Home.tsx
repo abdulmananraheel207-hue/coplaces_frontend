@@ -3,6 +3,7 @@ import { Link } from 'react-router';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { api, errorMessage } from '../../api';
 import { useAuth, useFeature, useLocation } from '../../auth';
+import { MyAmenities } from '../../components/Amenities';
 import { ReportProblem } from '../../components/ReportProblem';
 import { useToast } from '../../components/toast';
 import { Button, Chip, ErrorNote, Ledger, Loading, PageHeader, Section } from '../../components/ui';
@@ -48,7 +49,8 @@ export default function MemberHome() {
   const hasVisitors = useFeature('visitors');
   const toast = useToast();
   const refresh = useRefresh();
-  const q = useQuery({ queryKey: ['summary'], queryFn: () => api.get<MemberSummary>('/me/summary') });
+  // Checked every minute, so a notice that their time is up reaches them while the page is open.
+  const q = useQuery({ queryKey: ['summary'], queryFn: () => api.get<MemberSummary>('/me/summary'), refetchInterval: 60_000 });
   const news = useAnnouncements(useLocation().id);
   const [pending, setPending] = useState<string | null>(null);
 
@@ -111,6 +113,17 @@ export default function MemberHome() {
           <Link to="/invoices" className="text-sm font-semibold underline underline-offset-2">
             See invoices
           </Link>
+        </div>
+      )}
+
+      {s.overstay && (
+        <div role="alert" className="mb-8 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-busy bg-busy-wash px-4 py-3">
+          <p className="text-sm">
+            <strong>Your time at {s.overstay.resourceName} ended at {fmtTime(s.overstay.endedAt, s.timezone)}</strong>, {s.overstay.minutesOver} minutes ago. Please check out, or ask the front desk if you need more time.
+          </p>
+          <Button variant="primary" onClick={() => checkOut.mutate(s.overstay!.attendanceId)} disabled={checkOut.isPending}>
+            Check out
+          </Button>
         </div>
       )}
 
@@ -204,22 +217,7 @@ export default function MemberHome() {
             )}
           </Section>
 
-          {s.amenities.length > 0 && (
-            <Section title="Free every day">
-              <ul className="surface divide-y divide-line px-4 text-sm">
-                {s.amenities.map((a) => (
-                  <li key={a.amenityId} className="flex items-baseline justify-between gap-3 py-2">
-                    <span className="font-semibold">{a.name}</span>
-                    <span className="num text-slate">
-                      {Math.min(a.usedToday, a.freePerDay)} of {a.freePerDay} used today
-                    </span>
-                  </li>
-                ))}
-              </ul>
-              <p className="mt-2 text-xs text-slate">After your free ones: {s.amenities.map((a) => `${a.name} ${money(a.priceCents, s.currency)}`).join(', ')} each.</p>
-            </Section>
-          )}
-
+          {s.amenities.length > 0 && s.member.status === 'active' && <MyAmenities allowance={s.amenities} requests={s.amenityRequests} currency={s.currency} />}
           <Section title="Your plan">
             {s.plan ? (
               <Ledger

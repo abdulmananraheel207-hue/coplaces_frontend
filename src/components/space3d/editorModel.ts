@@ -19,8 +19,6 @@ export interface ResourceThing {
   name: string;
   floor: string;
   capacity: number;
-  hourlyRateCents: number;
-  dailyRateCents: number;
   amenities: string;
   /** In the plan's own coordinates, metres. */
   x: number;
@@ -164,8 +162,6 @@ export function startDraft(resources: Resource[], objects: FloorObject[], floors
         name: r.name,
         floor: r.floor,
         capacity: r.capacity,
-        hourlyRateCents: r.hourlyRateCents,
-        dailyRateCents: r.dailyRateCents,
         amenities: r.amenities,
         x: round(p.x + f.origin.x),
         z: round(p.z + f.origin.z),
@@ -203,8 +199,6 @@ function makeThing(entry: PaletteEntry, key: string, floor: string, x: number, z
     name: nextName(def.prefix, names),
     floor,
     capacity: def.capacity,
-    hourlyRateCents: def.hourly ?? 0,
-    dailyRateCents: def.daily ?? 0,
     amenities: '',
     x,
     z,
@@ -235,7 +229,7 @@ export const resizeThing = (d: Draft, key: string, w: number, z: number) => mapT
 export const removeThing = (d: Draft, key: string): Draft => ({ ...d, things: d.things.filter((t) => t.key !== key) });
 export const removeThings = (d: Draft, keys: readonly string[]): Draft => ({ ...d, things: d.things.filter((t) => !keys.includes(t.key)) });
 
-export function patchResource(d: Draft, key: string, patch: Partial<Pick<ResourceThing, 'name' | 'style' | 'capacity' | 'hourlyRateCents' | 'dailyRateCents' | 'amenities'>>): Draft {
+export function patchResource(d: Draft, key: string, patch: Partial<Pick<ResourceThing, 'name' | 'style' | 'capacity' | 'amenities'>>): Draft {
   return mapThing(d, key, (t) => (t.type === 'resource' ? { ...t, ...patch } : t));
 }
 
@@ -347,7 +341,7 @@ export function toTemplate(d: Draft, keys: readonly string[]): TemplateThing[] {
   const m = centreOf(src.map(boxOf));
   return src.map((t) =>
     t.type === 'resource'
-      ? { type: 'resource', kind: t.kind, style: t.style, name: t.name, capacity: t.capacity, hourlyRateCents: t.hourlyRateCents, dailyRateCents: t.dailyRateCents, amenities: t.amenities, x: round(t.x - m.x), z: round(t.z - m.z), rot: t.rot, w: t.w, d: t.d }
+      ? { type: 'resource', kind: t.kind, style: t.style, name: t.name, capacity: t.capacity, amenities: t.amenities, x: round(t.x - m.x), z: round(t.z - m.z), rot: t.rot, w: t.w, d: t.d }
       : { type: 'object', object: t.object, label: t.label, variant: t.variant ?? '', tint: t.tint ?? '', x: round(t.x - m.x), z: round(t.z - m.z), rot: t.rot, w: t.w, d: t.d },
   );
 }
@@ -359,7 +353,7 @@ export function applyTemplate(d: Draft, things: readonly TemplateThing[], floor:
     dz: t.z,
     thing:
       t.type === 'resource'
-        ? { type: 'resource', key: '', id: null, kind: t.kind, style: styleKey(t.kind, t.style), name: t.name, floor, capacity: t.capacity, hourlyRateCents: t.hourlyRateCents, dailyRateCents: t.dailyRateCents, amenities: t.amenities, x: 0, z: 0, rot: t.rot, w: t.w, d: t.d }
+        ? { type: 'resource', key: '', id: null, kind: t.kind, style: styleKey(t.kind, t.style), name: t.name, floor, capacity: t.capacity, amenities: t.amenities, x: 0, z: 0, rot: t.rot, w: t.w, d: t.d }
         : { type: 'object', key: '', id: null, object: t.object, label: t.label, floor, x: 0, z: 0, rot: t.rot, w: t.w, d: t.d, variant: t.variant, tint: t.tint },
   }));
   const at = findSpot(d, floor, keep(parts), near);
@@ -463,8 +457,6 @@ export interface SaveBody {
     name: string;
     floor: string;
     capacity: number;
-    hourlyRateCents: number;
-    dailyRateCents: number;
     amenities: string;
     plan: { x: number; z: number; rot: number; w: number | null; d: number | null };
   }[];
@@ -487,7 +479,7 @@ export function buildSave(locationId: string, draft: Draft, resources: Resource[
     if (t.type === 'resource') {
       const plan = { x: t.x, z: t.z, rot: t.rot, w: t.w, d: t.d };
       if (!t.id) {
-        body.create.push({ kind: t.kind, style: t.style, name: t.name, floor: t.floor, capacity: t.capacity, hourlyRateCents: t.hourlyRateCents, dailyRateCents: t.dailyRateCents, amenities: t.amenities, plan });
+        body.create.push({ kind: t.kind, style: t.style, name: t.name, floor: t.floor, capacity: t.capacity, amenities: t.amenities, plan });
         changes.added++;
         continue;
       }
@@ -496,8 +488,6 @@ export function buildSave(locationId: string, draft: Draft, resources: Resource[
       if (t.name !== r.name) props.name = t.name;
       if (t.style !== styleKey(r.kind, r.style)) props.style = t.style;
       if (t.capacity !== r.capacity) props.capacity = t.capacity;
-      if (t.hourlyRateCents !== r.hourlyRateCents) props.hourlyRateCents = t.hourlyRateCents;
-      if (t.dailyRateCents !== r.dailyRateCents) props.dailyRateCents = t.dailyRateCents;
       if (t.amenities !== r.amenities) props.amenities = t.amenities;
       const moved = !same(r.planX, t.x) || !same(r.planZ, t.z) || r.planRot !== t.rot || !same(r.planW, t.w) || !same(r.planD, t.d);
       // Spaces that were never placed get a position saved even when nothing else changed.

@@ -1,10 +1,11 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { NavLink, Outlet, useLocation as useRoute } from 'react-router';
-import { Building2, CalendarDays, CreditCard, DoorOpen, FileSignature, Fingerprint, Megaphone, Wrench, LayoutDashboard, LayoutGrid, LogOut, Menu, Package, Receipt, Settings, Tags, UserRound, Users, X } from 'lucide-react';
+import { Building2, CalendarDays, CalendarRange, Coins, CreditCard, DoorOpen, FileSignature, Fingerprint, Megaphone, Wrench, LayoutDashboard, LayoutGrid, LogOut, Menu, Package, Receipt, Settings, Tags, UserRound, Users, X } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../api';
 import { useAuth, useFeature } from '../auth';
 import { accessLabel, can } from '../lib/permissions';
+import { useAmenityRequests, useOverstaying } from '../lib/queries';
 import { SubscriptionBanner } from './SubscriptionBanner';
 import { initials } from './ui';
 import type { ReactNode } from 'react';
@@ -127,6 +128,9 @@ export function StaffShell() {
     refetchInterval: 60_000,
   });
   const waitingCount = Object.values(waiting.data ?? {}).reduce((a, b) => a + b, 0);
+  const deskAlerts = useOverstaying(location.id, can(user, 'front_desk')).data?.length ?? 0;
+  const deskRequests = useAmenityRequests(location.id, can(user, 'front_desk')).data?.length ?? 0;
+  const deskCount = deskAlerts + deskRequests;
   const showMoney = (invoicing && can(user, 'invoices')) || (expenses && can(user, 'expenses')) || (reports && can(user, 'reports'));
 
   return (
@@ -183,11 +187,21 @@ export function StaffShell() {
           {can(user, 'front_desk') && (
             <SideLink to="/front-desk" icon={<DoorOpen size={17} />}>
               Front desk
+              {deskCount > 0 && (
+                <span className="num ml-auto grid min-w-5 place-items-center rounded-full bg-busy px-1.5 text-[11px] font-bold text-white" aria-label={`${deskCount} things need the front desk`}>
+                  {deskCount}
+                </span>
+              )}
             </SideLink>
           )}
           {can(user, 'bookings') && (
             <SideLink to="/bookings" icon={<CalendarDays size={17} />}>
               Bookings
+            </SideLink>
+          )}
+          {can(user, 'bookings') && (
+            <SideLink to="/calendar" icon={<CalendarRange size={17} />}>
+              Calendar
             </SideLink>
           )}
           {can(user, 'members') && (
@@ -206,6 +220,11 @@ export function StaffShell() {
           {can(user, 'plans') && (
             <SideLink to="/plans" icon={<Tags size={17} />}>
               Plans
+            </SideLink>
+          )}
+          {can(user, 'plans') && (
+            <SideLink to="/pricing" icon={<Coins size={17} />}>
+              Pricing
             </SideLink>
           )}
           {can(user, 'contracts') && (

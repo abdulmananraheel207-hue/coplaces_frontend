@@ -29,7 +29,7 @@ const room = (box: ReturnType<typeof frac>, label = '', style = 'meeting', kind:
 const kitchen = (box: ReturnType<typeof frac>, type: FloorObjectType = 'kitchen', label = '') => ({ type, label, box });
 
 const existing = (name: string, x: number, z: number, floor = '1'): ResourceThing => ({
-  type: 'resource', key: name, id: name, kind: 'room', style: 'meeting', name, floor, capacity: 6, hourlyRateCents: 1, dailyRateCents: 0, amenities: '', x, z, rot: 0, w: 4, d: 3,
+  type: 'resource', key: name, id: name, kind: 'room', style: 'meeting', name, floor, capacity: 6, amenities: '', x, z, rot: 0, w: 4, d: 3,
 });
 
 /** Nothing on a floor may overlap anything else, and all of it must be inside the editor's limits. */
@@ -49,7 +49,6 @@ describe('importing a floor plan', () => {
     const res = run(r);
     const t = res.draft.things[0] as ResourceThing;
     expect(t).toMatchObject({ kind: 'corporate_room', style: 'boardroom', name: 'Boardroom', capacity: 14, floor: '1', w: 7.5, d: 4.5, rot: 0 });
-    expect(t.hourlyRateCents).toBeGreaterThan(0);
     expect(res.added).toEqual({ rooms: 1, desks: 0, amenities: 0 });
 
     // Telling it the building is twice as wide doubles everything.
@@ -94,7 +93,7 @@ describe('importing a floor plan', () => {
     const desks = res.draft.things as ResourceThing[];
     expect(desks).toHaveLength(6);
     expect(desks.map((d) => d.name)).toEqual(['Hot Desk 1', 'Hot Desk 2', 'Hot Desk 3', 'Hot Desk 4', 'Hot Desk 5', 'Hot Desk 6']);
-    expect(desks.every((d) => d.kind === 'hot_desk' && d.w === null && d.capacity === 1 && d.dailyRateCents > 0)).toBe(true);
+    expect(desks.every((d) => d.kind === 'hot_desk' && d.w === null && d.capacity === 1)).toBe(true);
     // Reading order: along a row, then down.
     expect(desks[0]!.x).toBeLessThan(desks[1]!.x);
     expect(desks[0]!.z).toBe(desks[1]!.z);

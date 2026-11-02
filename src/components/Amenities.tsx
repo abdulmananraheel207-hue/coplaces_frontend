@@ -6,8 +6,9 @@ import { MemberSelect } from './MemberSelect';
 import { useToast } from './toast';
 import { Button, ErrorNote, Field, Input, Loading, Section, Select } from './ui';
 import { fromCents, money, toCents } from '../lib/format';
-import { useAmenities, useRefresh } from '../lib/queries';
-import type { Amenity, MemberDetail } from '../types';
+import { useAmenities, useAmenityRequests, useRefresh } from '../lib/queries';
+import { fmtTime } from '../lib/time';
+import type { Amenity, AmenityRequest, MemberDetail } from '../types';
 
 /** What the owner gives a member: the amenities they get free each day (ticked, with how many) and their meeting room credit hours. */
 export interface FreeState {
@@ -48,7 +49,7 @@ export function FreeFields({ value, onChange }: { value: FreeState; onChange: (f
         <p className="text-sm text-slate">No amenities yet. Add tea, coffee or food under Settings, Amenities, and they will show here.</p>
       ) : (
         <div className="space-y-2">
-          <p className="text-xs text-slate">Tick what they get free every day and say how many. After that they pay the price.</p>
+          <p className="text-xs text-slate">Tick an amenity to give them some free every day, and say how many. Without a tick they can still order it and pay the price.</p>
           {amenities.data.map((a) => {
             const on = a.id in value.free;
             return (
@@ -208,6 +209,7 @@ export function AmenityDesk() {
   if (!list.data?.length) return null;
   return (
     <Section title="Tea, coffee and food">
+      <AmenityRequests />
       <form
         className="surface space-y-3 p-5"
         onSubmit={(e: FormEvent) => {
@@ -292,9 +294,139 @@ export function AmenitySection({ m, canCollect }: { m: MemberDetail; canCollect:
               <strong>{money(m.amenityOwedCents, loc.currency)}</strong> to collect for amenities.
             </span>
             {canCollect && <CollectButton memberId={m.id} />}
+            {canCollect && <InvoiceAmenitiesButton memberId={m.id} />}
           </p>
         )}
       </div>
+    </Section>
+  );
+}
+
+/** Front desk: what members have asked for from their free amounts. Serving one records it, free up to their daily amount. */
+function AmenityRequests() {
+  const loc = useLocation();
+  const toast = useToast();
+  const refresh = useRefresh();
+  const q = useAmenityRequests(loc.id);
+  const serve = useMutation({
+    mutationFn: (id: string) => api.post<{ order: { chargeCents: number; freeQuantity: number; quantity: number } }>(`/amenities/requests/${id}/serve`),
+    onSuccess: (r) => {
+      toast.ok(r.order.chargeCents > 0 ? `Served. ${money(r.order.chargeCents, loc.currency)} to collect for the ${r.order.quantity - r.order.freeQuantity} beyond their free amount` : 'Served, free');
+      void refresh('amenity-requests', 'member', 'reports', 'finance', 'summary');
+    },
+    onError: (e) => toast.error(errorMessage(e)),
+  });
+  const decline = useMutation({
+    mutationFn: (id: string) => api.post(`/amenities/requests/${id}/decline`, {}),
+    onSuccess: () => void refresh('amenity-requests', 'summary'),
+    onError: (e) => toast.error(errorMessage(e)),
+  });
+  if (!q.data?.length) return null;
+  return (
+    <ul className="surface mb-4 divide-y divide-line border-l-[6px] border-l-signal-deep px-4" aria-label="Amenity requests from members">
+      {q.data.map((r) => (
+        <li key={r.id} className="flex flex-wrap items-center justify-between gap-3 py-2.5 text-sm">
+          <span>
+            <span className="font-semibold">{r.memberName}</span> asked for {r.quantity} {r.name}
+            <span className="num ml-2 text-xs text-slate">{fmtTime(r.createdAt, loc.timezone)}</span>
+          </span>
+          <span className="flex gap-1.5">
+            <Button small variant="primary" disabled={serve.isPending} onClick={() => serve.mutate(r.id)}>
+              Serve
+            </Button>
+            <Button small variant="ghost" disabled={decline.isPending} onClick={() => decline.mutate(r.id)}>
+              Decline
+            </Button>
+          </span>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+/** Put what a member owes for amenities on an invoice now. */
+export function InvoiceAmenitiesButton({ memberId }: { memberId: string }) {
+  const toast = useToast();
+  const refresh = useRefresh();
+  const make = useMutation({
+    mutationFn: () => api.post<{ number: string }>('/amenities/invoice', { memberId }),
+    onSuccess: (inv) => {
+      toast.ok(`Added to invoice ${inv.number}`);
+      void refresh('member', 'invoices', 'reports', 'finance', 'summary', 'dashboard');
+    },
+    onError: (e) => toast.error(errorMessage(e)),
+  });
+  return (
+    <Button small disabled={make.isPending} onClick={() => make.mutate()}>
+      Add to invoice
+    </Button>
+  );
+}
+
+const REQUEST_WORD = { pending: 'Waiting for the front desk', served: 'Brought to you', declined: 'Declined', cancelled: 'Cancelled' } as const;
+
+/** Member home: the amenities they get free, a button to ask for one, and the answer to what they asked for. */
+export function MyAmenities({ allowance, requests, currency }: { allowance: import('../types').AmenityAllowance[]; requests: AmenityRequest[]; currency: string }) {
+  const toast = useToast();
+  const refresh = useRefresh();
+  const ask = useMutation({
+    mutationFn: (amenityId: string) => api.post('/amenities/requests', { amenityId, quantity: 1 }),
+    onSuccess: () => {
+      toast.ok('Asked. The front desk will bring it.');
+      void refresh('summary');
+    },
+    onError: (e) => toast.error(errorMessage(e)),
+  });
+  const cancel = useMutation({
+    mutationFn: (id: string) => api.post(`/amenities/requests/${id}/cancel`),
+    onSuccess: () => void refresh('summary'),
+    onError: (e) => toast.error(errorMessage(e)),
+  });
+  const recent = requests.slice(0, 5);
+  return (
+    <Section title="Tea, coffee and food">
+      <ul className="surface divide-y divide-line px-4 text-sm">
+        {allowance.map((a) => {
+          const left = Math.max(0, a.freePerDay - a.usedToday);
+          return (
+            <li key={a.amenityId} className="flex flex-wrap items-center justify-between gap-2 py-2">
+              <span>
+                <span className="font-semibold">{a.name}</span>
+                <span className="num block text-xs text-slate">
+                  {a.freePerDay === 0
+                    ? `${money(a.priceCents, currency)} each, added to what you owe`
+                    : left > 0
+                      ? `${left} of ${a.freePerDay} free left today, then ${money(a.priceCents, currency)} each`
+                      : `Free ones used today, then ${money(a.priceCents, currency)} each`}
+                </span>
+              </span>
+              <Button small disabled={ask.isPending} onClick={() => ask.mutate(a.amenityId)} aria-label={`Ask for ${a.name}`}>
+                Ask for one
+              </Button>
+            </li>
+          );
+        })}
+      </ul>
+      {recent.length > 0 && (
+        <ul className="mt-3 divide-y divide-line border-y border-line text-sm" aria-label="Your amenity requests">
+          {recent.map((r) => (
+            <li key={r.id} className="flex items-center justify-between gap-3 py-2">
+              <span>
+                {r.quantity} {r.name}
+                <span className="block text-xs text-slate">
+                  {REQUEST_WORD[r.status]}
+                  {r.reason ? `: ${r.reason}` : ''}
+                </span>
+              </span>
+              {r.status === 'pending' && (
+                <Button small variant="ghost" disabled={cancel.isPending} onClick={() => cancel.mutate(r.id)}>
+                  Cancel
+                </Button>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
     </Section>
   );
 }

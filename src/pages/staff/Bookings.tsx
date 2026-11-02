@@ -5,27 +5,18 @@ import { api, errorMessage } from '../../api';
 import { useLocation } from '../../auth';
 import { BookingModal, type BookingDraft } from '../../components/BookingModal';
 import { RoomRequestsPanel } from '../../components/RoomRequestsPanel';
-import { AmenityFilter, amenitiesAmong, withAmenities } from '../../components/AmenityFilter';
-import { BookingCalendar, BookingTimeline } from '../../components/BookingViews';
+import { statusChip } from '../../components/BookingViews';
 import { ItemDetail } from '../../components/ItemDetail';
 import { isRoomKind } from '../../lib/catalogue';
 import { SpaceBoard, use3d } from '../../components/SpaceBoard';
 import { defaultViewTime, ViewAtTime } from '../../components/ViewAtTime';
-import { DeskTile } from '../../components/Plaque';
-import { RoomTimeline } from '../../components/RoomTimeline';
 import { useToast } from '../../components/toast';
-import { Button, Chip, Empty, ErrorNote, Field, Input, Loading, Modal, PageHeader, Section, Segmented, Select } from '../../components/ui';
-import { mondayOf, monthFirst, monthGrid, monthLast } from '../../lib/calendar';
+import { Button, Empty, ErrorNote, Field, Input, Loading, Modal, PageHeader, Section, Select } from '../../components/ui';
 import { downloadCsv, fromCents, KIND_LABEL, money, titleCase } from '../../lib/format';
-import { useBookingsRange, useHolidays, useRefresh, useResources, useSchedule } from '../../lib/queries';
-import { buildSpaceItems, deskState } from '../../lib/spaceState';
-import { addDays, addMonths, fmtDay, fmtLongDay, fmtMonth, fmtTime, localDateOf, todayIn, zonedToUtc } from '../../lib/time';
+import { useBookingsRange, useRefresh, useResources, useSchedule } from '../../lib/queries';
+import { buildSpaceItems } from '../../lib/spaceState';
+import { addDays, fmtDay, fmtLongDay, fmtTime, localDateOf, todayIn, zonedToUtc } from '../../lib/time';
 import type { Booking } from '../../types';
-
-const statusChip = (b: Booking) =>
-  b.status === 'confirmed' && b.checkedInAt ? <Chip tone="mine">Checked in</Chip> : b.status === 'confirmed' && Date.parse(b.endsAt) < Date.now() ? <Chip tone="hold">Did not check in</Chip> : b.status === 'confirmed' ? <Chip tone="ok">Confirmed</Chip> : b.status === 'completed' ? <Chip tone="mine">Completed</Chip> : b.status === 'no_show' ? <Chip tone="hold">No-show</Chip> : <Chip tone="idle">Cancelled</Chip>;
-
-type View = 'day' | 'calendar' | 'timeline';
 
 /** Downloads bookings between two dates as a spreadsheet file. */
 function ExportModal({ open, onClose, from, to }: { open: boolean; onClose: () => void; from: string; to: string }) {
@@ -100,24 +91,14 @@ export default function Bookings() {
   const toast = useToast();
   const refresh = useRefresh();
   const today = todayIn(loc.timezone);
+  // The day the floor view shows. The list further down has its own From and Until.
   const [date, setDate] = useState(today);
-  const [view, setView] = useState<View>('day');
-  const [span, setSpan] = useState<'week' | 'month'>('week');
+  // The list starts at today and looks a month ahead; the owner moves either end to see further, or to look back.
+  const [from, setFrom] = useState(today);
+  const [until, setUntil] = useState(addDays(today, 30));
   const [exporting, setExporting] = useState(false);
   const [draft, setDraft] = useState<BookingDraft | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
-
-  const month = date.slice(0, 7);
-  const range =
-    view === 'day'
-      ? { from: date, to: date }
-      : view === 'calendar'
-        ? monthGrid(date)
-        : span === 'week'
-          ? { from: mondayOf(date), to: addDays(mondayOf(date), 6) }
-          : { from: monthFirst(date), to: monthLast(date) };
-  const monthly = view === 'calendar' || (view === 'timeline' && span === 'month');
-  const step = (dir: 1 | -1) => setDate(view === 'day' ? addDays(date, dir) : monthly ? `${addMonths(month, dir)}-01` : addDays(date, 7 * dir));
 
   const schedule = useSchedule(loc.id, date);
   const resourceList = useResources(loc.id);
@@ -132,8 +113,7 @@ export default function Bookings() {
     () => buildSpaceItems(resourceList.data ?? [], schedule.data, zonedToUtc(date, viewTime, loc.timezone)),
     [resourceList.data, schedule.data, date, viewTime, loc.timezone],
   );
-  const list = useBookingsRange(loc.id, range.from, range.to);
-  const holidays = useHolidays(loc.id, range.from, range.to);
+  const list = useBookingsRange(loc.id, from, until);
 
   const act = useMutation({
     mutationFn: (v: { id: string; action: 'cancel' | 'completed' | 'no_show' }) =>
@@ -147,208 +127,133 @@ export default function Bookings() {
   });
 
   const resources = schedule.data?.resources ?? [];
-  const hotDesks = resources.filter((r) => r.kind === 'hot_desk');
-  const selected = list.data?.find((b) => b.id === selectedId) ?? null;
-  const [needs, setNeeds] = useState<string[]>([]);
+  const rows = useMemo(() => [...(list.data ?? [])].sort((a, b) => a.startsAt.localeCompare(b.startsAt)), [list.data]);
+  const selected = rows.find((b) => b.id === selectedId) ?? null;
   const closed = schedule.data?.closed ?? null;
-
   const selectBooking = (id: string) => setSelectedId(id);
-  const openDay = (d: string) => {
-    setDate(d);
-    setView('day');
-  };
-
-  const sub = view === 'day' ? fmtLongDay(date) : view === 'calendar' ? fmtMonth(month) : `${fmtDay(range.from)} to ${fmtDay(range.to)}`;
 
   return (
     <>
-      <PageHeader title="Bookings" sub={sub}>
-        <Segmented<View>
-          label="View"
-          value={view}
-          onChange={setView}
-          options={[
-            { value: 'day', label: 'Day' },
-            { value: 'calendar', label: 'Calendar' },
-            { value: 'timeline', label: 'Timeline' },
-          ]}
-        />
-        <div className="flex items-center gap-1">
-          <Button aria-label={view === 'day' ? 'Previous day' : monthly ? 'Previous month' : 'Previous week'} onClick={() => step(-1)}>
-            <ChevronLeft size={16} />
-          </Button>
-          {view === 'day' && <Input type="date" aria-label="Date" value={date} onChange={(e) => e.target.value && setDate(e.target.value)} className="!w-auto" />}
-          <Button aria-label={view === 'day' ? 'Next day' : monthly ? 'Next month' : 'Next week'} onClick={() => step(1)}>
-            <ChevronRight size={16} />
-          </Button>
-          {date !== today && <Button onClick={() => setDate(today)}>Today</Button>}
-        </div>
-        {view === 'timeline' && (
-          <Segmented<'week' | 'month'>
-            label="Timeline length"
-            value={span}
-            onChange={setSpan}
-            options={[
-              { value: 'week', label: 'Week' },
-              { value: 'month', label: 'Month' },
-            ]}
-          />
-        )}
+      <PageHeader title="Bookings" sub={`${fmtDay(from)} to ${fmtDay(until)}`}>
         <Button onClick={() => setExporting(true)}>
           <Download size={15} aria-hidden /> Export
         </Button>
-        <Button variant="primary" disabled={view === 'day' && closed !== null} title={view === 'day' && closed ? closed : undefined} onClick={() => setDraft({ date: view === 'day' ? date : date < today ? today : date })}>
+        <Button variant="primary" disabled={closed !== null} title={closed ?? undefined} onClick={() => setDraft({ date })}>
           New booking
         </Button>
       </PageHeader>
 
       <RoomRequestsPanel />
 
-      {view === 'calendar' && (
-        <Section title="Month" aside="Click a day to open it">
-          {list.isLoading ? <Loading /> : <BookingCalendar month={month} today={today} loc={loc} bookings={list.data ?? []} holidays={holidays.data ?? []} onPickDay={openDay} />}
-        </Section>
-      )}
-
-      {view === 'timeline' && (
-        <Section title="Rooms and desks" aside="Bars sit where the booking falls in opening hours. Click an empty cell to book, a bar to manage.">
-          {list.isLoading || resourceList.isLoading ? (
-            <Loading />
-          ) : (
-            <BookingTimeline
-              from={range.from}
-              to={range.to}
-              today={today}
-              loc={loc}
-              resources={resourceList.data ?? []}
-              bookings={list.data ?? []}
-              holidays={holidays.data ?? []}
-              onOpen={selectBooking}
-              onPick={(resourceId, d) => setDraft({ resourceId, date: d })}
-            />
-          )}
-        </Section>
-      )}
-
-      {view === 'day' && (
-        <div className="space-y-9">
-          {closed && (
-            <p role="status" className="rounded-xl border border-signal-deep/30 bg-hold-wash px-4 py-2.5 text-sm">
-              <strong>{closed}.</strong> Nothing can be booked on this day.
+      <div className="space-y-9">
+        {closed && (
+          <p role="status" className="rounded-xl border border-signal-deep/30 bg-hold-wash px-4 py-2.5 text-sm">
+            <strong>{closed}.</strong> Nothing can be booked on {fmtLongDay(date)}.
+          </p>
+        )}
+        {show3d && (
+          <Section
+            title="Floor view"
+            aside={
+              <div className="flex flex-wrap items-center gap-1">
+                <Button aria-label="Previous day" onClick={() => setDate(addDays(date, -1))}>
+                  <ChevronLeft size={16} />
+                </Button>
+                <Input type="date" aria-label="Floor view date" value={date} onChange={(e) => e.target.value && setDate(e.target.value)} className="!w-auto" />
+                <Button aria-label="Next day" onClick={() => setDate(addDays(date, 1))}>
+                  <ChevronRight size={16} />
+                </Button>
+                {date !== today && <Button onClick={() => setDate(today)}>Today</Button>}
+              </div>
+            }
+          >
+            <p className="mb-3 text-sm text-slate">
+              {fmtLongDay(date)}. Rooms and desks show who has them at the chosen time.
             </p>
-          )}
-          {show3d && (
-            <Section title="Floor view" aside="Rooms and desks show who has them at the chosen time.">
-              <SpaceBoard
-                items={items}
-                selectedId={spaceId}
-                onSelect={setSpaceId}
-                aside={<ViewAtTime openTime={loc.openTime} closeTime={loc.closeTime} value={viewTime} onChange={setViewTime} />}
-                renderDetail={(item) => (
-                  <ItemDetail item={item} onClose={() => setSpaceId(null)}>
-                    {item.bookable && !item.bookingId && item.tone === 'ok' && !closed && (
-                      <Button variant="primary" onClick={() => setDraft({ resourceId: item.id, date, startTime: isRoomKind(item.kind) ? viewTime : undefined })}>
-                        {isRoomKind(item.kind) ? `Book at ${viewTime}` : 'Book this desk'}
-                      </Button>
-                    )}
-                    {item.bookingId && <Button onClick={() => selectBooking(item.bookingId!)}>Manage booking</Button>}
-                  </ItemDetail>
-                )}
-              />
-            </Section>
-          )}
-
-          <Section title="Meeting and corporate rooms" aside="Click open time to book">
-            {schedule.isLoading ? (
-              <Loading />
-            ) : schedule.data && resources.some((r) => isRoomKind(r.kind)) ? (
-              <>
-                <AmenityFilter options={amenitiesAmong(resources)} value={needs} onChange={setNeeds} />
-                <RoomTimeline
-                  schedule={withAmenities(schedule.data, needs)!}
-                  onPick={(room, startTime) => !closed && setDraft({ resourceId: room.id, date, startTime })}
-                  onOpen={(b) => selectBooking(b.id)}
-                />
-              </>
-            ) : (
-              <Empty title="No meeting rooms" hint="Add rooms under Spaces to start taking bookings." />
-            )}
+            <SpaceBoard
+              items={items}
+              selectedId={spaceId}
+              onSelect={setSpaceId}
+              aside={<ViewAtTime openTime={loc.openTime} closeTime={loc.closeTime} value={viewTime} onChange={setViewTime} />}
+              renderDetail={(item) => (
+                <ItemDetail item={item} onClose={() => setSpaceId(null)}>
+                  {item.bookable && !item.bookingId && item.tone === 'ok' && !closed && (
+                    <Button variant="primary" onClick={() => setDraft({ resourceId: item.id, date, startTime: viewTime })}>
+                      Book at {viewTime}
+                    </Button>
+                  )}
+                  {item.bookingId && <Button onClick={() => selectBooking(item.bookingId!)}>Manage booking</Button>}
+                </ItemDetail>
+              )}
+            />
           </Section>
+        )}
 
-          {hotDesks.length > 0 && schedule.data && (
-            <Section title="Hot desks" aside={`${hotDesks.filter((d) => schedule.data!.bookings.some((b) => b.resourceId === d.id) || schedule.data!.inUse.some((u) => u.resourceId === d.id)).length} of ${hotDesks.length} booked or in use`}>
-              <div className="mb-3">
-                <ViewAtTime openTime={loc.openTime} closeTime={loc.closeTime} value={viewTime} onChange={setViewTime} />
-              </div>
-              <div className="flex flex-wrap gap-1.5">
-                {hotDesks.map((d) => {
-                  const st = deskState(d, schedule.data!, zonedToUtc(date, viewTime, loc.timezone));
-                  const out = d.status !== 'available';
-                  const taken = st.tone === 'busy' || st.tone === 'mine';
-                  const later = schedule.data!.bookings.filter((x) => x.resourceId === d.id);
-                  return (
-                    <DeskTile
-                      key={d.id}
-                      label={d.name.split(' ').pop() ?? d.name}
-                      tone={out ? 'out' : taken ? 'taken' : 'free'}
-                      title={
-                        out
-                          ? `${d.name}, ${d.status}`
-                          : `${d.name}, ${st.label.toLowerCase()}${st.detail ? ` (${st.detail})` : ''}${!taken && later.length ? `. Booked ${later.map((x) => (x.allDay ? 'all day' : `${fmtTime(x.startsAt, loc.timezone)}–${fmtTime(x.endsAt, loc.timezone)}`)).join(', ')}` : ''}${taken ? '' : '. Click to book'}`
-                      }
-                      onClick={out || (taken && !st.bookingId) ? undefined : st.bookingId ? () => selectBooking(st.bookingId!) : closed ? undefined : () => setDraft({ resourceId: d.id, date })}
-                    />
-                  );
-                })}
-              </div>
-            </Section>
-          )}
-
-          <Section title="All bookings this day">
-            {list.isLoading ? (
-              <Loading />
-            ) : !list.data?.length ? (
-              <Empty title="No bookings on this day" />
-            ) : (
-              <div className="surface-table">
-                <table className="tbl">
-                  <thead>
-                    <tr>
-                      <th>Time</th>
-                      <th>Space</th>
-                      <th>Member</th>
-                      <th>Status</th>
-                      <th className="r">Charge</th>
-                      <th>
-                        <span className="sr-only">Actions</span>
-                      </th>
+        <Section title="Bookings" aside={list.data ? `${rows.length} ${rows.length === 1 ? 'booking' : 'bookings'}` : undefined}>
+          <div className="mb-4 flex flex-wrap items-end gap-3">
+            <Field label="From">
+              <Input type="date" aria-label="From" value={from} max={until} onChange={(e) => e.target.value && setFrom(e.target.value)} className="!w-auto" />
+            </Field>
+            <Field label="Until">
+              <Input type="date" aria-label="Until" value={until} min={from} onChange={(e) => e.target.value && setUntil(e.target.value)} className="!w-auto" />
+            </Field>
+            <Button
+              onClick={() => {
+                setFrom(today);
+                setUntil(addDays(today, 30));
+              }}
+              disabled={from === today && until === addDays(today, 30)}
+            >
+              Today and the next 30 days
+            </Button>
+          </div>
+          {list.isLoading ? (
+            <Loading />
+          ) : list.error ? (
+            <ErrorNote error={list.error} />
+          ) : rows.length === 0 ? (
+            <Empty title="No bookings in these dates" hint="Move the From and Until dates to look at other days." />
+          ) : (
+            <div className="surface-table">
+              <table className="tbl">
+                <thead>
+                  <tr>
+                    <th>Date</th>
+                    <th>Time</th>
+                    <th>Space</th>
+                    <th>Member</th>
+                    <th>Status</th>
+                    <th className="r">Charge</th>
+                    <th>
+                      <span className="sr-only">Actions</span>
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map((b) => (
+                    <tr key={b.id} className={b.status === 'cancelled' ? 'text-slate' : ''}>
+                      <td className="num whitespace-nowrap">{fmtDay(localDateOf(b.startsAt, loc.timezone))}</td>
+                      <td className="num whitespace-nowrap">{b.allDay ? 'All day' : `${fmtTime(b.startsAt, loc.timezone)}–${fmtTime(b.endsAt, loc.timezone)}`}</td>
+                      <td>{b.resourceName}</td>
+                      <td>{b.memberName}</td>
+                      <td>{statusChip(b)}</td>
+                      <td className="r">{b.priceCents > 0 ? money(b.priceCents, loc.currency) : 'Included'}</td>
+                      <td className="r">
+                        <Button small variant="ghost" onClick={() => selectBooking(b.id)}>
+                          Manage
+                        </Button>
+                      </td>
                     </tr>
-                  </thead>
-                  <tbody>
-                    {list.data.map((b) => (
-                      <tr key={b.id} className={b.status === 'cancelled' ? 'text-slate' : ''}>
-                        <td className="num whitespace-nowrap">{b.allDay ? 'All day' : `${fmtTime(b.startsAt, loc.timezone)}–${fmtTime(b.endsAt, loc.timezone)}`}</td>
-                        <td>{b.resourceName}</td>
-                        <td>{b.memberName}</td>
-                        <td>{statusChip(b)}</td>
-                        <td className="r">{b.priceCents > 0 ? money(b.priceCents, loc.currency) : 'Included'}</td>
-                        <td className="r">
-                          <Button small variant="ghost" onClick={() => selectBooking(b.id)}>
-                            Manage
-                          </Button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </Section>
-        </div>
-      )}
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </Section>
+      </div>
 
       <BookingModal open={draft !== null} onClose={() => setDraft(null)} resources={resources.length ? resources : (resourceList.data ?? [])} draft={draft ?? {}} staff />
-      <ExportModal open={exporting} onClose={() => setExporting(false)} from={range.from} to={range.to} />
+      <ExportModal open={exporting} onClose={() => setExporting(false)} from={from} to={until} />
 
       <Modal open={selected !== null} onClose={() => setSelectedId(null)} title="Booking">
         {selected && (

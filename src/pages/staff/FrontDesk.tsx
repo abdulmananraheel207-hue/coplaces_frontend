@@ -3,10 +3,11 @@ import { useMutation } from '@tanstack/react-query';
 import { api, errorMessage } from '../../api';
 import { useFeature, useLocation } from '../../auth';
 import { AmenityDesk } from '../../components/Amenities';
+import { OverstayAlert } from '../../components/Overstay';
 import { MemberSelect } from '../../components/MemberSelect';
 import { useToast } from '../../components/toast';
 import { Button, Chip, Empty, ErrorNote, Field, Input, Loading, Modal, PageHeader, Section } from '../../components/ui';
-import { usePresent, useRefresh, useVisitors } from '../../lib/queries';
+import { useOverstaying, usePresent, useRefresh, useVisitors } from '../../lib/queries';
 import { fmtTime, todayIn } from '../../lib/time';
 import type { Visitor } from '../../types';
 
@@ -135,6 +136,7 @@ export default function FrontDesk() {
   const refresh = useRefresh();
   const today = todayIn(loc.timezone);
   const present = usePresent(loc.id);
+  const overstaying = useOverstaying(loc.id);
   const hasVisitors = useFeature('visitors');
   const todays = useVisitors(loc.id, { date: today }, hasVisitors);
   const inside = useVisitors(loc.id, { status: 'checked_in' }, hasVisitors);
@@ -144,7 +146,7 @@ export default function FrontDesk() {
     mutationFn: (id: string) => api.post(`/attendance/${id}/check-out`),
     onSuccess: () => {
       toast.ok('Checked out');
-      void refresh('attendance', 'dashboard', 'members');
+      void refresh('attendance', 'dashboard', 'members', 'overstaying');
     },
     onError: (e) => toast.error(errorMessage(e)),
   });
@@ -170,6 +172,8 @@ export default function FrontDesk() {
           </Button>
         )}
       </PageHeader>
+
+      <OverstayAlert list={overstaying.data ?? []} busy={checkOut.isPending} onCheckOut={(id) => checkOut.mutate(id)} />
 
       <div className={`grid gap-10 ${hasVisitors ? 'lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]' : 'max-w-2xl'}`}>
         <div className="space-y-8">

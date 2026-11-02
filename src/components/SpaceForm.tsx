@@ -3,7 +3,7 @@ import { useMutation } from '@tanstack/react-query';
 import { api, errorMessage } from '../api';
 import { useLocation } from '../auth';
 import { isRoomKind, STYLES, styleDef, styleKey } from '../lib/catalogue';
-import { fromCents, KIND_LABEL, toCents } from '../lib/format';
+import { KIND_LABEL } from '../lib/format';
 import { useRefresh } from '../lib/queries';
 import type { Resource, ResourceKind, ResourceStatus } from '../types';
 import { AmenityPicker } from './AmenityPicker';
@@ -52,7 +52,6 @@ export function SpaceForm({ initial, kind, onDone }: { initial?: Resource; kind:
   const loc = useLocation();
   const toast = useToast();
   const refresh = useRefresh();
-  const money = (c: number | null | undefined) => (c === null || c === undefined ? '' : fromCents(c));
   const [v, setV] = useState({
     name: initial?.name ?? '',
     kind: initial?.kind ?? kind,
@@ -60,8 +59,6 @@ export function SpaceForm({ initial, kind, onDone }: { initial?: Resource; kind:
     floor: initial?.floor ?? '',
     capacity: String(initial?.capacity ?? styleDef(kind, '').capacity),
     description: initial?.description ?? '',
-    hourly: fromCents(initial?.hourlyRateCents ?? 0),
-    daily: fromCents(initial?.dailyRateCents ?? 0),
     amenities: initial?.amenities ?? '',
     status: (initial?.status ?? 'available') as ResourceStatus,
     notes: initial?.notes ?? '',
@@ -69,38 +66,18 @@ export function SpaceForm({ initial, kind, onDone }: { initial?: Resource; kind:
     openTime: initial?.openTime ?? loc.openTime,
     closeTime: initial?.closeTime ?? loc.closeTime,
     closed: initial?.closedWeekdays ? initial.closedWeekdays.split(',') : ([] as string[]),
-    peakOn: !!(initial?.peakStart && initial?.peakEnd),
-    peakStart: initial?.peakStart ?? '09:00',
-    peakEnd: initial?.peakEnd ?? '17:00',
-    offPeak: money(initial?.offPeakRateCents),
-    halfDay: money(initial?.halfDayRateCents),
-    fullDay: money(initial?.fullDayRateCents),
-    noPlan: money(initial?.noPlanRateCents),
   });
   const set = <K extends keyof typeof v>(k: K, val: (typeof v)[K]) => setV((x) => ({ ...x, [k]: val }));
-  const hourly = isRoomKind(v.kind);
-  const daily = v.kind === 'hot_desk';
-  const priced = hourly || daily;
+  // Rooms and hot desks are the spaces that can have their own opening hours. Their price is set on the Pricing tab.
+  const priced = isRoomKind(v.kind) || v.kind === 'hot_desk';
 
   const save = useMutation({
     mutationFn: () => {
-      const optional = (text: string, what: string) => {
-        if (!text.trim()) return null;
-        const c = toCents(text);
-        if (c === null) throw new Error(`Enter ${what} as a number, like 25 or 12.50`);
-        return c;
-      };
-      const hourlyC = toCents(v.hourly);
-      const dailyC = toCents(v.daily);
-      if (hourlyC === null || dailyC === null) throw new Error('Enter prices as numbers, like 25 or 12.50');
-      const offPeak = hourly && v.peakOn ? optional(v.offPeak, 'the off-peak rate') : null;
       const body = {
         name: v.name,
         floor: v.floor,
         capacity: Number(v.capacity),
         description: v.description,
-        hourlyRateCents: hourlyC,
-        dailyRateCents: dailyC,
         amenities: v.amenities,
         status: v.status,
         notes: v.notes,
@@ -108,12 +85,6 @@ export function SpaceForm({ initial, kind, onDone }: { initial?: Resource; kind:
         openTime: v.ownHours ? v.openTime : null,
         closeTime: v.ownHours ? v.closeTime : null,
         closedWeekdays: v.closed.length ? [...v.closed].sort().join(',') : null,
-        peakStart: hourly && v.peakOn ? v.peakStart : null,
-        peakEnd: hourly && v.peakOn ? v.peakEnd : null,
-        offPeakRateCents: offPeak,
-        halfDayRateCents: hourly ? optional(v.halfDay, 'the half-day price') : null,
-        fullDayRateCents: hourly ? optional(v.fullDay, 'the day price') : null,
-        noPlanRateCents: priced ? optional(v.noPlan, 'the no-plan rate') : null,
       };
       return initial ? api.patch(`/resources/${initial.id}`, body) : api.post('/resources', { ...body, kind: v.kind, locationId: loc.id });
     },
@@ -183,57 +154,6 @@ export function SpaceForm({ initial, kind, onDone }: { initial?: Resource; kind:
       {initial && (
         <Group title="Photos" hint="Shown to members when they look at the space.">
           <PhotoManager resourceId={initial.id} ids={initial.photoIds ?? []} />
-        </Group>
-      )}
-
-      {priced && (
-        <Group
-          title="Pricing"
-          hint={hourly ? (v.kind === 'corporate_room' ? "Corporate rooms always bill at their own rates. A plan's included meeting minutes do not apply." : "Billed per hour beyond a member's included meeting minutes. The cheapest of the hourly total, the half-day price and the day price is what is charged.") : 'Free for members whose plan includes hot desks.'}
-        >
-          <div className="grid gap-3 sm:grid-cols-2">
-            {hourly ? (
-              <Field label={`Hourly rate (${loc.currency})`}>
-                <Input inputMode="decimal" value={v.hourly} onChange={(e) => set('hourly', e.target.value)} />
-              </Field>
-            ) : (
-              <Field label={`Day rate (${loc.currency})`}>
-                <Input inputMode="decimal" value={v.daily} onChange={(e) => set('daily', e.target.value)} />
-              </Field>
-            )}
-            <Field label={`Rate for members with no plan (${loc.currency})`} hint={hourly ? 'An hourly rate. Leave empty to charge everyone the same.' : 'A day rate. Leave empty to charge everyone the same.'}>
-              <Input inputMode="decimal" value={v.noPlan} onChange={(e) => set('noPlan', e.target.value)} />
-            </Field>
-          </div>
-          {hourly && (
-            <>
-              <label className="flex items-center gap-2 text-sm font-semibold">
-                <input type="checkbox" checked={v.peakOn} onChange={(e) => set('peakOn', e.target.checked)} className="size-4 accent-ink" />
-                Charge a different rate outside peak hours
-              </label>
-              {v.peakOn && (
-                <div className="grid gap-3 sm:grid-cols-3">
-                  <Field label="Peak from">
-                    <Input type="time" required value={v.peakStart} onChange={(e) => set('peakStart', e.target.value)} />
-                  </Field>
-                  <Field label="Peak until">
-                    <Input type="time" required value={v.peakEnd} onChange={(e) => set('peakEnd', e.target.value)} />
-                  </Field>
-                  <Field label={`Off-peak rate (${loc.currency})`} hint="The hourly rate above is the peak rate.">
-                    <Input inputMode="decimal" required value={v.offPeak} onChange={(e) => set('offPeak', e.target.value)} />
-                  </Field>
-                </div>
-              )}
-              <div className="grid gap-3 sm:grid-cols-2">
-                <Field label={`Half-day price (${loc.currency})`} hint="A flat price for up to four hours. Optional.">
-                  <Input inputMode="decimal" value={v.halfDay} onChange={(e) => set('halfDay', e.target.value)} />
-                </Field>
-                <Field label={`Day pass (${loc.currency})`} hint="A flat price for any booking, however long. Optional.">
-                  <Input inputMode="decimal" value={v.fullDay} onChange={(e) => set('fullDay', e.target.value)} />
-                </Field>
-              </div>
-            </>
-          )}
         </Group>
       )}
 

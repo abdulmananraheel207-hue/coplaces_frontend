@@ -1,5 +1,5 @@
 import { lazy, Suspense } from 'react';
-import { Navigate, Route, Routes, useLocation as useRoute } from 'react-router';
+import { Link, Navigate, Route, Routes, useLocation as useRoute } from 'react-router';
 import { isStaff, useAuth } from './auth';
 import { RequireFeature, RequirePermission, RequireRole } from './components/FeatureGate';
 import { InvoiceView } from './components/InvoiceView';
@@ -17,6 +17,7 @@ import MemberInvoices from './pages/member/Invoices';
 import MemberVisitors from './pages/member/Visitors';
 import Announcements from './pages/staff/Announcements';
 import Bookings from './pages/staff/Bookings';
+import Calendar from './pages/staff/Calendar';
 import Contracts from './pages/staff/Contracts';
 import Devices from './pages/staff/Devices';
 import Maintenance from './pages/staff/Maintenance';
@@ -30,6 +31,7 @@ import Members from './pages/staff/Members';
 import { FinanceIndex, FinanceLayout } from './pages/staff/Finance';
 import Payments from './pages/staff/Payments';
 import Plans from './pages/staff/Plans';
+import Pricing from './pages/staff/Pricing';
 import Settings, { PasswordForm } from './pages/staff/Settings';
 import Spaces from './pages/staff/Spaces';
 
@@ -41,7 +43,7 @@ function NotFound() {
   return (
     <>
       <PageHeader title="Page not found" />
-      <Empty title="There is nothing at this address" hint="Use the menu to get back on track." />
+      <Empty title="There is nothing at this address" hint="Use the menu to get back on track." action={<Link to="/" className="font-semibold underline">Go to the home page</Link>} />
     </>
   );
 }
@@ -53,6 +55,7 @@ function StaffRoutes() {
         <Route index element={<Dashboard />} />
         <Route path="front-desk" element={<RequirePermission permission="front_desk"><FrontDesk /></RequirePermission>} />
         <Route path="bookings" element={<RequirePermission permission="bookings"><Bookings /></RequirePermission>} />
+        <Route path="calendar" element={<RequirePermission permission="bookings"><Calendar /></RequirePermission>} />
         <Route path="members" element={<RequirePermission permission="members"><Members /></RequirePermission>} />
         <Route path="members/:id" element={<RequirePermission permission="members"><MemberDetail /></RequirePermission>} />
         <Route path="spaces" element={<Spaces />} />
@@ -103,6 +106,14 @@ function StaffRoutes() {
           element={
             <RequirePermission permission="plans">
               <Plans />
+            </RequirePermission>
+          }
+        />
+        <Route
+          path="pricing"
+          element={
+            <RequirePermission permission="plans">
+              <Pricing />
             </RequirePermission>
           }
         />

@@ -5,7 +5,7 @@ import { api, errorMessage } from '../api';
 import { useLocation } from '../auth';
 import { money } from '../lib/format';
 import { useShifts } from '../lib/queries';
-import { addDays, fromMinutes, todayIn, toMinutes } from '../lib/time';
+import { addDays, closeMinutes, crossesMidnight, fromMinutes, todayIn, toMinutes } from '../lib/time';
 import type { Booking, PriceBasis, Resource } from '../types';
 import { MemberSelect } from './MemberSelect';
 import { Button, ErrorNote, Field, Input, Modal, Select, Textarea } from './ui';
@@ -25,13 +25,9 @@ function basisNote(b: PriceBasis | undefined, currency: string, staff: boolean) 
     case 'shift':
       return `${b.name} shift price (set in Shift templates)`;
     case 'hourly':
-      return `${money(b.rateCents, currency)} an hour (set on the space)`;
-    case 'daily':
-      return `${money(b.rateCents, currency)} a day (set on the space)`;
-    case 'dayshare':
-      return `A share of the day price, ${money(b.rateCents, currency)} a day (set on the space)`;
+      return `${money(b.rateCents, currency)} an hour (set on the Pricing tab)`;
     default:
-      return "Worked out from the space's rates, such as peak hours, half-day or day pass (set on the space)";
+      return '';
   }
 }
 
@@ -55,14 +51,15 @@ function BookingForm({
   const loc = useLocation();
   const qc = useQueryClient();
   const toast = useToast();
-  const bookable = resources.filter((r) => (isRoomKind(r.kind) || r.kind === 'hot_desk') && r.status === 'available');
+  // Only spaces with an hourly price (set on the Pricing tab) can be booked.
+  const bookable = resources.filter((r) => r.hourlyRateCents > 0 && r.status === 'available');
 
   const [memberId, setMemberId] = useState('');
   const [resourceId, setResourceId] = useState(draft.resourceId ?? bookable[0]?.id ?? '');
   const [date, setDate] = useState(draft.date ?? todayIn(loc.timezone));
   const [startTime, setStartTime] = useState(draft.startTime ?? loc.openTime);
   const [endTime, setEndTime] = useState(() =>
-    fromMinutes(Math.min(toMinutes(draft.startTime ?? loc.openTime) + 60, toMinutes(loc.closeTime))),
+    fromMinutes(Math.min(toMinutes(draft.startTime ?? loc.openTime) + 60, closeMinutes(loc.openTime, loc.closeTime))),
   );
   const [notes, setNotes] = useState('');
   // A hot desk is booked for the whole day unless the person picks times, or one of the owner's shifts.
@@ -71,15 +68,16 @@ function BookingForm({
 
   const resource = bookable.find((r) => r.id === resourceId);
   const isDesk = resource?.kind === 'hot_desk';
-  const isRoom = (!!resource && isRoomKind(resource.kind)) || (isDesk && mode === 'times');
+  const isRoom = !!resource && (!isDesk || mode === 'times');
   const shiftsHere = (shifts.data ?? []).filter((s) => s.active && (s.spaceIds.length ? s.spaceIds.includes(resourceId) : s.resourceId === resourceId || (!s.resourceId && (!s.kind || s.kind === resource?.kind))));
   const today = todayIn(loc.timezone);
   // A space can keep its own opening hours.
   const openTime = resource?.openTime ?? loc.openTime;
   const closeTime = resource?.closeTime ?? loc.closeTime;
 
-  // What it would cost, worked out by the server exactly as booking it would, so peak hours and day passes show before anyone commits.
-  const ready = !!resourceId && !!date && (!isRoom || (!!startTime && !!endTime && toMinutes(endTime) > toMinutes(startTime))) && (!staff || !!memberId);
+  // What it would cost, worked out by the server exactly as booking it would, so the price shows before anyone commits.
+  const overnight = crossesMidnight(openTime, closeTime);
+  const ready = !!resourceId && !!date && (!isRoom || (!!startTime && !!endTime && (overnight ? startTime !== endTime : toMinutes(endTime) > toMinutes(startTime)))) && (!staff || !!memberId);
   const quote = useQuery({
     queryKey: ['quote', resourceId, date, isRoom ? startTime : '', isRoom ? endTime : '', staff ? memberId : ''],
     queryFn: () => api.post<{ priceCents: number; billableMinutes: number; basis?: PriceBasis }>('/bookings/quote', { resourceId, memberId: staff ? memberId : undefined, date, startTime: isRoom ? startTime : undefined, endTime: isRoom ? endTime : undefined }),
@@ -192,10 +190,10 @@ function BookingForm({
       {isRoom ? (
         <div className="grid grid-cols-2 gap-3">
           <Field label="From" hint={`Open ${openTime} to ${closeTime}`}>
-            <Input type="time" step={900} required min={openTime} max={closeTime} value={startTime} onChange={(e) => setStartTime(e.target.value)} />
+            <Input type="time" step={900} required min={overnight ? undefined : openTime} max={overnight ? undefined : closeTime} value={startTime} onChange={(e) => setStartTime(e.target.value)} />
           </Field>
           <Field label="Until">
-            <Input type="time" step={900} required min={openTime} max={closeTime} value={endTime} onChange={(e) => setEndTime(e.target.value)} />
+            <Input type="time" step={900} required min={overnight ? undefined : openTime} max={overnight ? undefined : closeTime} value={endTime} onChange={(e) => setEndTime(e.target.value)} />
           </Field>
         </div>
       ) : (

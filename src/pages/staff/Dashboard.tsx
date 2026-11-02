@@ -5,6 +5,7 @@ import { can } from '../../lib/permissions';
 import { BookingModal, type BookingDraft } from '../../components/BookingModal';
 import { ItemDetail } from '../../components/ItemDetail';
 import { SpaceBoard } from '../../components/SpaceBoard';
+import { OverstayAlert } from '../../components/Overstay';
 import { SpaceList } from '../../components/SpaceList';
 import { Avatar, Button, Chip, Empty, Ledger, Loading, PageHeader, Section, buttonClass } from '../../components/ui';
 import { isRoomKind } from '../../lib/catalogue';
@@ -77,6 +78,7 @@ export default function Dashboard() {
 
       <div className="grid gap-10 lg:grid-cols-[minmax(0,1fr)_20rem]">
         <div className="space-y-9">
+          {ops && <OverstayAlert list={ops.overstaying ?? []} />}
           {resources.data && resources.data.length === 0 ? (
             <Section title="Set up your space">
               <Empty

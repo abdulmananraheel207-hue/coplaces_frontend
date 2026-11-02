@@ -1,7 +1,7 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { Navigate, useLocation as useRoute } from 'react-router';
 import { Eye, EyeOff, Lock, Mail } from 'lucide-react';
-import { useAuth } from '../auth';
+import { isStaff, useAuth } from '../auth';
 import { errorMessage } from '../api';
 import { Avatar, Button, ErrorNote, Field, Input } from '../components/ui';
 import { Plate } from '../components/Layout';
@@ -28,6 +28,20 @@ const GRID: React.CSSProperties = {
   WebkitMaskImage: 'radial-gradient(ellipse 70% 60% at 35% 50%, black 30%, transparent 85%)',
 };
 
+/** Where each kind of account has pages. A link remembered from another account's session must not land on a page this one does not have. */
+const HAS_PAGES = {
+  staff: ['/front-desk', '/bookings', '/members', '/spaces', '/finance', '/plans', '/contracts', '/announcements', '/maintenance', '/devices', '/settings'],
+  member: ['/book', '/visitors', '/invoices', '/account'],
+  platform: ['/spaces', '/packages', '/payments', '/settings'],
+} as const;
+
+function landingFor(role: string, staff: boolean, wanted: string | undefined) {
+  if (!wanted || !wanted.startsWith('/') || wanted.startsWith('//') || wanted === '/login') return '/';
+  if (wanted.startsWith('/s/') && role !== 'superadmin') return wanted; // a space's QR code works for staff and members
+  const pages = role === 'superadmin' ? HAS_PAGES.platform : staff ? HAS_PAGES.staff : HAS_PAGES.member;
+  return pages.some((p) => wanted === p || wanted.startsWith(`${p}/`)) ? wanted : '/';
+}
+
 export default function Login() {
   const { user, login } = useAuth();
   const [email, setEmail] = useState('');
@@ -47,7 +61,7 @@ export default function Login() {
 
   // Someone who scanned a space's QR code and had to sign in first lands where they were going, not on the home page.
   const wanted = (useRoute().state as { from?: string } | null)?.from;
-  if (user) return <Navigate to={wanted && wanted.startsWith('/') && !wanted.startsWith('//') && wanted !== '/login' ? wanted : '/'} replace />;
+  if (user) return <Navigate to={landingFor(user.role, isStaff(user), wanted)} replace />;
 
   async function signIn(mail: string, pass: string) {
     setBusy(true);

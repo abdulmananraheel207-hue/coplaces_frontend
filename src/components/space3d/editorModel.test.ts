@@ -13,8 +13,7 @@ const res = (o: Partial<Resource> = {}): Resource => ({
   name: `Space ${n}`,
   floor: '1',
   capacity: 4,
-  hourlyRateCents: 100,
-  dailyRateCents: 0,
+  hourlyRateCents: 0,
   amenities: '',
   status: 'available',
   notes: '',
@@ -28,12 +27,6 @@ const res = (o: Partial<Resource> = {}): Resource => ({
   openTime: null,
   closeTime: null,
   closedWeekdays: null,
-  offPeakRateCents: null,
-  peakStart: null,
-  peakEnd: null,
-  halfDayRateCents: null,
-  fullDayRateCents: null,
-  noPlanRateCents: null,
   ...o,
 });
 const placed = (o: Partial<Resource>, x: number, z: number, rot = 0) => res({ ...o, planX: x, planZ: z, planRot: rot });
@@ -180,9 +173,9 @@ describe('saving', () => {
     const r = rs();
     const o = ob();
     let d = startDraft(r, o).draft;
-    d = { ...d, things: d.things.map((t) => (t.type === 'resource' && t.name === 'Boardroom' ? { ...t, name: 'Council Room', hourlyRateCents: 500 } : t)) };
+    d = { ...d, things: d.things.map((t) => (t.type === 'resource' && t.name === 'Boardroom' ? { ...t, name: 'Council Room', capacity: 9 } : t)) };
     const { body } = buildSave('loc', d, r, o);
-    expect(body.update[0]!.props).toEqual({ name: 'Council Room', hourlyRateCents: 500 });
+    expect(body.update[0]!.props).toEqual({ name: 'Council Room', capacity: 9 });
   });
 });
 
@@ -199,9 +192,11 @@ describe('placing and fitting', () => {
   it('starts new things with their style defaults', () => {
     const empty: Draft = { things: [], floors: [] };
     const t = placeThing(empty, entry('hot_desk:standing'), '1', 0, 0, 0, [], 1).thing;
-    expect(t).toMatchObject({ type: 'resource', kind: 'hot_desk', style: 'standing', capacity: 1, dailyRateCents: 170_000 });
+    expect(t).toMatchObject({ type: 'resource', kind: 'hot_desk', style: 'standing', capacity: 1 });
     const hall = placeThing(empty, entry('corporate_room:training_hall'), '1', 0, 0, 0, [], 2).thing;
-    expect(hall).toMatchObject({ capacity: 30, hourlyRateCents: 1_200_000 });
+    expect(hall).toMatchObject({ capacity: 30 });
+    // new spaces carry no price: the owner prices them on the Pricing tab
+    expect(t).not.toHaveProperty('hourlyRateCents');
   });
 
   it('only fits things on their own floor, clear of others, and inside the allowed area', () => {
@@ -392,8 +387,6 @@ describe('the palette', () => {
       const size = boxOf(t);
       expect(size.w).toBeGreaterThan(0.05);
       expect(size.d).toBeGreaterThan(0.05);
-      if (t.type === 'resource' && (t.kind === 'room' || t.kind === 'corporate_room')) expect(t.hourlyRateCents).toBeGreaterThan(0);
-      if (t.type === 'resource' && t.kind === 'hot_desk') expect(t.dailyRateCents).toBeGreaterThan(0);
     }
   });
 });

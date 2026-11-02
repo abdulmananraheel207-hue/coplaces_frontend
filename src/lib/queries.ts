@@ -1,6 +1,6 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../api';
-import type { Amenity, ShiftTemplate, Announcement, AttendanceRow, Booking, Dashboard, FloorObject, Holiday, Occupancy, Plan, Resource, Schedule, Visitor } from '../types';
+import type { Amenity, AmenityRequest, Overstay, ShiftTemplate, Announcement, AttendanceRow, Booking, Dashboard, FloorObject, Holiday, Occupancy, Plan, Resource, Schedule, Visitor } from '../types';
 
 export const useDashboard = (locationId: string) =>
   useQuery({ queryKey: ['dashboard', locationId], queryFn: () => api.get<Dashboard>('/reports/dashboard', { locationId }), refetchInterval: 60_000 });
@@ -50,6 +50,14 @@ export const useShifts = (locationId: string, memberId?: string, enabled = true)
 /** The amenities a location offers (tea, coffee, food), for setup, the member forms and the front desk. */
 export const useAmenities = (locationId: string, enabled = true) =>
   useQuery({ queryKey: ['amenities', locationId], queryFn: () => api.get<Amenity[]>('/amenities', { locationId }), enabled });
+
+/** Members still in the building after their shift or booking ended. Checked every half minute so the front desk sees it soon. */
+export const useOverstaying = (locationId: string, enabled = true) =>
+  useQuery({ queryKey: ['overstaying', locationId], queryFn: () => api.get<Overstay[]>('/attendance/overstaying', { locationId }), enabled, refetchInterval: 30_000 });
+
+/** Members' requests for their free amenities that the front desk has not answered yet. */
+export const useAmenityRequests = (locationId: string, enabled = true) =>
+  useQuery({ queryKey: ['amenity-requests', locationId], queryFn: () => api.get<AmenityRequest[]>('/amenities/requests', { locationId, pending: 1 }), enabled, refetchInterval: 20_000 });
 
 export const usePlans = (locationId: string) =>
   useQuery({ queryKey: ['plans', locationId], queryFn: () => api.get<Plan[]>('/plans', { locationId }) });

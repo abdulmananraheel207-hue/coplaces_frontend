@@ -44,7 +44,19 @@ export const toMinutes = (hhmm: string) => {
 };
 
 export const fromMinutes = (mins: number) =>
-  `${String(Math.floor(mins / 60)).padStart(2, '0')}:${String(mins % 60).padStart(2, '0')}`;
+  `${String(Math.floor(mins / 60) % 24).padStart(2, '0')}:${String(mins % 60).padStart(2, '0')}`;
+
+/** A business that closes at or before the time it opens (18:00 to 04:00) stays open past midnight. */
+export const crossesMidnight = (open: string, close: string) => toMinutes(close) <= toMinutes(open);
+/** The closing time in minutes from midnight, past 24:00 when the business closes after midnight (04:00 is 28:00). */
+export const closeMinutes = (open: string, close: string) => (crossesMidnight(open, close) ? toMinutes(close) + 1440 : toMinutes(close));
+/** A minute of the day on a business day that opens at `openMin`: the small hours count as after midnight (01:00 is 25:00). */
+export const onBusinessDay = (m: number, openMin: number) => (m < openMin ? m + 1440 : m);
+/** How long something from `start` to `end` lasts, going past midnight when it has to. */
+export const spanMinutes = (start: string, end: string) => {
+  const d = toMinutes(end) - toMinutes(start);
+  return d > 0 ? d : d + 1440;
+};
 
 export const fmtTime = (iso: string, tz: string) => {
   const p = parts(iso, tz);

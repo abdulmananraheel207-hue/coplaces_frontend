@@ -4,7 +4,7 @@ import { MoneyChart } from '../../components/MoneyChart';
 import { Bars } from '../../components/Bars';
 import { Button, ErrorNote, Loading, Section } from '../../components/ui';
 import { useAuth, useFeature } from '../../auth';
-import { CollectButton } from '../../components/Amenities';
+import { CollectButton, InvoiceAmenitiesButton } from '../../components/Amenities';
 import { can } from '../../lib/permissions';
 import { downloadCsv, METHOD_LABEL, money, moneyWhole, titleCase } from '../../lib/format';
 import { depositRows } from '../../components/ContractPrint';
@@ -104,12 +104,13 @@ export default function FinanceOverview() {
                   <span className="flex items-center gap-3">
                     <span className="num font-semibold">{money(o.owedCents, cur)}</span>
                     {(can(user, 'front_desk') || can(user, 'invoices')) && <CollectButton memberId={o.memberId} label="Mark collected" />}
+                    {can(user, 'invoices') && <InvoiceAmenitiesButton memberId={o.memberId} />}
                   </span>
                 </li>
               ))}
             </ul>
           )}
-          <p className="mt-2 text-xs text-slate">Beyond each member's free amount for the day. It counts as income once you mark it collected.</p>
+          <p className="mt-2 text-xs text-slate">Beyond each member's free amount for the day. Collect it at the desk, or add it to the member's invoice. It counts as income once it is collected or the invoice is paid.</p>
         </Section>
       )}
 
