@@ -1,11 +1,11 @@
-import { useCallback } from 'react';
+import { Suspense, useCallback } from 'react';
 import { Navigate, Outlet, useSearchParams } from 'react-router';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../../api';
 import { useAuth, useCanUse, useLocation } from '../../auth';
 import { financeHome } from '../../lib/access';
 import { DEFAULT_PERIOD, keepWithinLocation, parsePeriod, periodRange, withPeriod, type Period } from '../../lib/financePeriod';
-import { PageHeader, Segmented, Tabs } from '../../components/ui';
+import { Loading, PageHeader, Segmented, Tabs } from '../../components/ui';
 import { todayIn } from '../../lib/time';
 import type { FinanceReport } from '../../types';
 
@@ -95,7 +95,9 @@ export function FinanceLayout() {
         <PageHeader title="Finance" sub="Income, costs and profit for this space, and the invoices behind them." />
       </div>
       <Tabs items={tabs} />
-      <Outlet />
+      <Suspense fallback={<Loading />}>
+        <Outlet />
+      </Suspense>
     </>
   );
 }

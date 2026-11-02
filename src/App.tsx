@@ -1,41 +1,46 @@
-import { lazy, Suspense } from 'react';
+import { Suspense, useEffect } from 'react';
 import { Navigate, Route, Routes, useLocation as useRoute } from 'react-router';
 import { isStaff, useAuth } from './auth';
 import { RequireFeature, RequirePermission, RequireRole } from './components/FeatureGate';
-import { InvoiceView } from './components/InvoiceView';
 import { MemberShell, PlatformShell, StaffShell } from './components/Layout';
 import { Button, Empty, Loading, PageHeader, Section } from './components/ui';
 import Login from './pages/Login';
-import PlatformOverview from './pages/platform/Overview';
-import PlatformPackages from './pages/platform/Packages';
-import PlatformPayments from './pages/platform/Payments';
-import PlatformSpaceDetail from './pages/platform/SpaceDetail';
-import PlatformSpaces from './pages/platform/Spaces';
-import MemberBook from './pages/member/Book';
-import MemberHome from './pages/member/Home';
-import MemberInvoices from './pages/member/Invoices';
-import MemberVisitors from './pages/member/Visitors';
-import Announcements from './pages/staff/Announcements';
-import Bookings from './pages/staff/Bookings';
-import Contracts from './pages/staff/Contracts';
-import Devices from './pages/staff/Devices';
-import Maintenance from './pages/staff/Maintenance';
-import SpaceScan from './pages/SpaceScan';
-import Dashboard from './pages/staff/Dashboard';
-import Expenses from './pages/staff/Expenses';
-import FrontDesk from './pages/staff/FrontDesk';
-import Invoices from './pages/staff/Invoices';
-import MemberDetail from './pages/staff/MemberDetail';
-import Members from './pages/staff/Members';
-import { FinanceIndex, FinanceLayout } from './pages/staff/Finance';
-import Payments from './pages/staff/Payments';
-import Plans from './pages/staff/Plans';
-import Settings, { PasswordForm } from './pages/staff/Settings';
-import Spaces from './pages/staff/Spaces';
+import { PAGES, preloadPages } from './pageRegistry';
 
-// The overview and profit and loss pages pull in the chart code, so they load on demand.
-const FinanceOverview = lazy(() => import('./pages/staff/FinanceOverview'));
-const ProfitLoss = lazy(() => import('./pages/staff/ProfitLoss'));
+/** Every page loads on demand, then all of them are fetched in the background (see pageRegistry.ts), so moving around stays instant. */
+const {
+  InvoiceView,
+  PlatformOverview,
+  PlatformPackages,
+  PlatformPayments,
+  PlatformSpaceDetail,
+  PlatformSpaces,
+  MemberBook,
+  MemberHome,
+  MemberInvoices,
+  MemberVisitors,
+  Announcements,
+  Bookings,
+  Contracts,
+  Devices,
+  Maintenance,
+  SpaceScan,
+  Dashboard,
+  Expenses,
+  FrontDesk,
+  Invoices,
+  MemberDetail,
+  Members,
+  FinanceIndex,
+  FinanceLayout,
+  FinanceOverview,
+  ProfitLoss,
+  Payments,
+  Plans,
+  Settings,
+  PasswordForm,
+  Spaces,
+} = PAGES;
 
 function NotFound() {
   return (
@@ -202,6 +207,10 @@ function MemberRoutes() {
 function Gate() {
   const { user, location, loading, loadError, refresh } = useAuth();
   const route = useRoute();
+  // Once we know who is here, fetch the rest of their pages in idle time so every later page opens at once.
+  useEffect(() => {
+    if (user) preloadPages(user.role === 'superadmin' ? 'platform' : isStaff(user) ? 'staff' : 'member');
+  }, [user]);
   if (loading) return <Loading label="Loading" />;
   if (!user && loadError) {
     return (

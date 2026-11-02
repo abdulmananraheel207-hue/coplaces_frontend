@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { Suspense, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { NavLink, Outlet, useLocation as useRoute } from 'react-router';
 import { Building2, CalendarDays, CreditCard, DoorOpen, FileSignature, Fingerprint, Megaphone, Wrench, LayoutDashboard, LayoutGrid, LogOut, Menu, Package, Receipt, Settings, Tags, UserRound, Users, X } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
@@ -7,7 +7,7 @@ import { useAuth, useFeature } from '../auth';
 import { accessLabel, can } from '../lib/permissions';
 import { anyFinance } from '../lib/access';
 import { SubscriptionBanner } from './SubscriptionBanner';
-import { initials } from './ui';
+import { initials, Loading } from './ui';
 import type { ReactNode } from 'react';
 
 /** The location plate: a square sign with the site code. */
@@ -89,7 +89,10 @@ function PageTransition() {
   const { pathname } = useRoute();
   return (
     <div key={pathname.split('/')[1] ?? ''} className="page-enter">
-      <Outlet />
+      {/* A page's code may still be on its way; the shell stays put while it comes. */}
+      <Suspense fallback={<Loading />}>
+        <Outlet />
+      </Suspense>
     </div>
   );
 }
