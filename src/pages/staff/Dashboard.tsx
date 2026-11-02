@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { Link } from 'react-router';
 import { useAuth, useFeature, useLocation } from '../../auth';
 import { can } from '../../lib/permissions';
+import { dashboardMoney } from '../../lib/access';
 import { BookingModal, type BookingDraft } from '../../components/BookingModal';
 import { ItemDetail } from '../../components/ItemDetail';
 import { SpaceBoard } from '../../components/SpaceBoard';
@@ -15,7 +16,8 @@ import { fmtLongDay, fmtTime, todayIn } from '../../lib/time';
 
 export default function Dashboard() {
   const loc = useLocation();
-  const { user } = useAuth();
+  const { user, org } = useAuth();
+  const allowedMoney = dashboardMoney(user, org?.features);
   const today = todayIn(loc.timezone);
   const [draft, setDraft] = useState<BookingDraft | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -24,8 +26,6 @@ export default function Dashboard() {
   const resources = useResources(loc.id);
   const present = usePresent(loc.id);
   const hasVisitors = useFeature('visitors');
-  const hasExpenses = useFeature('expenses');
-  const hasReports = useFeature('reports');
   const visitors = useVisitors(loc.id, { date: today }, hasVisitors);
   const now = new Date();
   const minute = Math.floor(now.getTime() / 60_000);
@@ -34,7 +34,8 @@ export default function Dashboard() {
   const items = useMemo(() => buildSpaceItems(resources.data ?? [], schedule.data, new Date(), { currency: loc.currency }), [resources.data, schedule.data, minute, loc.currency]);
 
   const ops = dash.data?.ops;
-  const fin = dash.data?.finance;
+  // The server decides whether to send the figures; the page also checks the person's permissions and the package.
+  const fin = allowedMoney.show ? dash.data?.finance : null;
   const cur = loc.currency;
 
   const detail = (item: SpaceItem) => (
@@ -87,12 +88,16 @@ export default function Dashboard() {
                     <Link to="/spaces" className={buttonClass('primary')}>
                       Add rooms and desks
                     </Link>
-                    <Link to="/plans" className={buttonClass()}>
-                      Create plans
-                    </Link>
-                    <Link to="/members" className={buttonClass()}>
-                      Add members
-                    </Link>
+                    {can(user, 'plans') && (
+                      <Link to="/plans" className={buttonClass()}>
+                        Create plans
+                      </Link>
+                    )}
+                    {can(user, 'members') && (
+                      <Link to="/members" className={buttonClass()}>
+                        Add members
+                      </Link>
+                    )}
                   </div>
                 }
               />
@@ -111,7 +116,7 @@ export default function Dashboard() {
         </div>
 
         <aside className="space-y-9">
-          <Section title="In the building" aside={<Link to="/front-desk" className="font-semibold text-ink underline underline-offset-2">Check in</Link>}>
+          <Section title="In the building" aside={can(user, 'front_desk') ? <Link to="/front-desk" className="font-semibold text-ink underline underline-offset-2">Check in</Link> : undefined}>
             {present.isLoading ? (
               <Loading />
             ) : present.data && present.data.length > 0 ? (
@@ -165,20 +170,24 @@ export default function Dashboard() {
           )}
 
           {fin && (
-            <Section title="This month" aside={hasReports ? <Link to="/finance/overview" className="font-semibold text-ink underline underline-offset-2">Finance overview</Link> : undefined}>
+            <Section title="This month" aside={allowedMoney.overviewLink ? <Link to="/finance/overview" className="font-semibold text-ink underline underline-offset-2">Finance overview</Link> : undefined}>
               <Ledger
                 rows={[
                   { label: 'Collected', value: moneyWhole(fin.collectedThisMonthCents, cur) },
-                  { label: 'Invoiced', value: moneyWhole(fin.invoicedThisMonthCents, cur) },
-                  ...(hasExpenses ? [{ label: 'Expenses', value: moneyWhole(fin.expensesThisMonthCents, cur) }] : []),
+                  ...(allowedMoney.invoiceFigures ? [{ label: 'Invoiced', value: moneyWhole(fin.invoicedThisMonthCents, cur) }] : []),
+                  ...(allowedMoney.expenses ? [{ label: 'Expenses', value: moneyWhole(fin.expensesThisMonthCents, cur) }] : []),
                   { label: 'Monthly recurring', value: moneyWhole(fin.mrrCents, cur), note: 'Plan fees from active members' },
-                  { label: 'Outstanding', value: moneyWhole(fin.outstandingCents, cur) },
-                  {
-                    label: 'Overdue',
-                    value: moneyWhole(fin.overdueCents, cur),
-                    tone: fin.overdueCents > 0 ? 'busy' : undefined,
-                    note: fin.overdueCount > 0 ? `${fin.overdueCount} ${fin.overdueCount === 1 ? 'invoice' : 'invoices'}` : undefined,
-                  },
+                  ...(allowedMoney.invoiceFigures
+                    ? [
+                        { label: 'Outstanding', value: moneyWhole(fin.outstandingCents, cur) },
+                        {
+                          label: 'Overdue',
+                          value: moneyWhole(fin.overdueCents, cur),
+                          tone: fin.overdueCents > 0 ? ('busy' as const) : undefined,
+                          note: fin.overdueCount > 0 ? `${fin.overdueCount} ${fin.overdueCount === 1 ? 'invoice' : 'invoices'}` : undefined,
+                        },
+                      ]
+                    : []),
                 ]}
               />
             </Section>

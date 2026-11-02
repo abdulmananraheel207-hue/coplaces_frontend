@@ -46,6 +46,7 @@ function Problems() {
 export default function MemberHome() {
   const { user } = useAuth();
   const hasVisitors = useFeature('visitors');
+  const hasInvoices = useFeature('invoicing');
   const toast = useToast();
   const refresh = useRefresh();
   const q = useQuery({ queryKey: ['summary'], queryFn: () => api.get<MemberSummary>('/me/summary') });
@@ -108,9 +109,11 @@ export default function MemberHome() {
           <p className="text-sm">
             <strong>{money(s.balanceDueCents, s.currency)}</strong> due{s.overdueCents > 0 ? `, ${money(s.overdueCents, s.currency)} of it overdue` : ''}.
           </p>
-          <Link to="/invoices" className="text-sm font-semibold underline underline-offset-2">
-            See invoices
-          </Link>
+          {hasInvoices && (
+            <Link to="/invoices" className="text-sm font-semibold underline underline-offset-2">
+              See invoices
+            </Link>
+          )}
         </div>
       )}
 

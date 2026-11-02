@@ -2,7 +2,7 @@ import { useState, type FormEvent } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { api, errorMessage } from '../../api';
-import { useAuth, useLocation } from '../../auth';
+import { useAuth, useCanUse, useFeature, useLocation } from '../../auth';
 import { AmenitySection, FreeFields, freeBody, freeFrom, freeOk, type FreeState } from '../../components/Amenities';
 import { CredentialsModal } from '../../components/Credentials';
 import { PlanPicker } from '../../components/PlanPicker';
@@ -138,7 +138,9 @@ export default function MemberDetail() {
   const { id = '' } = useParams();
   const loc = useLocation();
   const { user } = useAuth();
-  const mayInvoice = can(user, 'invoices');
+  // Invoices need both the permission and the package's invoicing feature.
+  const mayInvoice = useCanUse('invoices');
+  const invoicing = useFeature('invoicing');
   const toast = useToast();
   const refresh = useRefresh();
   const navigate = useNavigate();
@@ -253,7 +255,7 @@ export default function MemberDetail() {
       <div className="grid gap-10 lg:grid-cols-[minmax(0,1fr)_20rem]">
         <div className="space-y-9">
           <MoneySection m={m} canSettle={m.status !== 'active' || !m.planEnd || !!planPeriodState(m.planEnd, todayIn(loc.timezone))} />
-          <AmenitySection m={m} canCollect={can(user, 'front_desk') || mayInvoice} />
+          <AmenitySection m={m} canCollect={can(user, 'front_desk') || can(user, 'invoices')} />
           <Section title="Upcoming bookings">
             {bookings.isLoading ? (
               <Loading />
@@ -350,14 +352,16 @@ export default function MemberDetail() {
             />
             {m.notes && <p className="mt-3 rounded-lg border border-line bg-paper px-3 py-2 text-sm">{m.notes}</p>}
           </Section>
-          <Section title="Account balance">
-            <Ledger
-              rows={[
-                { label: 'Balance due', value: money(m.balanceDueCents, loc.currency) },
-                { label: 'Overdue', value: money(m.overdueCents, loc.currency), tone: m.overdueCents > 0 ? 'busy' : undefined },
-              ]}
-            />
-          </Section>
+          {invoicing && (
+            <Section title="Account balance">
+              <Ledger
+                rows={[
+                  { label: 'Balance due', value: money(m.balanceDueCents, loc.currency) },
+                  { label: 'Overdue', value: money(m.overdueCents, loc.currency), tone: m.overdueCents > 0 ? 'busy' : undefined },
+                ]}
+              />
+            </Section>
+          )}
           <Section title="Assigned spaces">
             {m.assignments.length === 0 ? (
               <p className="text-sm text-slate">No desk or office assigned.</p>

@@ -2,8 +2,8 @@ import { useState } from 'react';
 import { Navigate, Outlet, useOutletContext } from 'react-router';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../../api';
-import { useAuth, useFeature, useLocation } from '../../auth';
-import { can } from '../../lib/permissions';
+import { useAuth, useCanUse, useLocation } from '../../auth';
+import { financeHome } from '../../lib/access';
 import { PageHeader, Segmented, Tabs } from '../../components/ui';
 import { addMonths, todayIn } from '../../lib/time';
 import type { FinanceReport } from '../../types';
@@ -45,10 +45,9 @@ export function PeriodPicker({ months, setMonths }: Period) {
 }
 
 export function FinanceLayout() {
-  const { user } = useAuth();
-  const invoicing = useFeature('invoicing') && can(user, 'invoices');
-  const expenses = useFeature('expenses') && can(user, 'expenses');
-  const reports = useFeature('reports') && can(user, 'reports');
+  const invoicing = useCanUse('invoices');
+  const expenses = useCanUse('expenses');
+  const reports = useCanUse('reports');
   const [months, setMonths] = useState('6');
   const tabs = [
     ...(reports ? [{ to: '/finance/overview', label: 'Overview' }, { to: '/finance/profit-loss', label: 'Profit and loss' }] : []),
@@ -67,10 +66,6 @@ export function FinanceLayout() {
 }
 
 export function FinanceIndex() {
-  const { user } = useAuth();
-  const invoicing = useFeature('invoicing') && can(user, 'invoices');
-  const expenses = useFeature('expenses') && can(user, 'expenses');
-  const reports = useFeature('reports') && can(user, 'reports');
-  const to = reports ? '/finance/overview' : invoicing ? '/finance/invoices' : expenses ? '/finance/expenses' : '/';
-  return <Navigate to={to} replace />;
+  const { user, org } = useAuth();
+  return <Navigate to={financeHome(user, org?.features)} replace />;
 }

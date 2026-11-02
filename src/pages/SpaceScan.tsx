@@ -78,9 +78,11 @@ export default function SpaceScan() {
               <Wrench size={16} aria-hidden /> Maintenance for this space
             </Link>
           )}
-          <Link to={team ? '/bookings' : '/book'} className={buttonClass()}>
-            {team ? 'Open bookings' : 'Request a room'}
-          </Link>
+          {(!team || can(user, 'bookings')) && (
+            <Link to={team ? '/bookings' : '/book'} className={buttonClass()}>
+              {team ? 'Open bookings' : 'Request a room'}
+            </Link>
+          )}
         </div>
         {checkIn.error && <ErrorNote error={checkIn.error} />}
 

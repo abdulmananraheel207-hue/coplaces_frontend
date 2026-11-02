@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, ApiError } from './api';
+import { canUse, type Area } from './lib/access';
 import type { FeatureKey, Location, OrgInfo, User } from './types';
 
 interface Session {
@@ -128,4 +129,10 @@ export const isStaff = (u: User) => u.role === 'owner' || u.role === 'manager' |
 export function useFeature(feature: FeatureKey) {
   const { org } = useAuth();
   return !!org?.features.includes(feature);
+}
+
+/** Whether the signed-in person may use a money area: their permission and the package's feature together. */
+export function useCanUse(area: Area) {
+  const { user, org } = useAuth();
+  return canUse(user, org?.features, area);
 }

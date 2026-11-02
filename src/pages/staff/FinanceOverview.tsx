@@ -3,9 +3,9 @@ import { Link } from 'react-router';
 import { MoneyChart } from '../../components/MoneyChart';
 import { Bars } from '../../components/Bars';
 import { Button, ErrorNote, Loading, Section } from '../../components/ui';
-import { useAuth, useFeature, useLocation } from '../../auth';
+import { useAuth, useLocation } from '../../auth';
 import { CollectButton } from '../../components/Amenities';
-import { can } from '../../lib/permissions';
+import { overviewSections } from '../../lib/access';
 import { downloadCsv, METHOD_LABEL, money, moneyWhole, titleCase } from '../../lib/format';
 import { depositRows } from '../../components/ContractPrint';
 import { fmtDate, localDateOf } from '../../lib/time';
@@ -44,8 +44,8 @@ function Figure({ label, value, sub, tone, note }: { label: string; value: strin
 
 export default function FinanceOverview() {
   const { months, setMonths } = useFinancePeriod();
-  const invoicing = useFeature('invoicing');
-  const { user } = useAuth();
+  const { user, org } = useAuth();
+  const show = overviewSections(user, org?.features);
   const loc = useLocation();
   const q = useFinanceReport(months);
   if (q.isLoading) return <Loading />;
@@ -81,7 +81,7 @@ export default function FinanceOverview() {
         <PeriodPicker months={months} setMonths={setMonths} />
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <div className={`grid gap-3 sm:grid-cols-2 ${show.owed ? 'xl:grid-cols-4' : 'xl:grid-cols-3'}`}>
         <Figure label="Money in" value={moneyWhole(inCents, cur)} sub={inChange.text} note={inChange.tone} />
         <Figure label="Money out" value={moneyWhole(outCents, cur)} sub={outChange.text} note={outChange.tone} />
         <Figure
@@ -90,7 +90,7 @@ export default function FinanceOverview() {
           tone={profit ? 'ok' : 'busy'}
           sub={margin === null ? 'No income yet' : `${margin}% of money in`}
         />
-        <Figure label="Still owed to you" value={moneyWhole(owedCents, cur)} sub={lateCount > 0 ? `${moneyWhole(lateCents, cur)} is overdue` : 'Nothing is overdue'} note={lateCount > 0 ? 'text-busy' : 'text-ok'} />
+        {show.owed && <Figure label="Still owed to you" value={moneyWhole(owedCents, cur)} sub={lateCount > 0 ? `${moneyWhole(lateCents, cur)} is overdue` : 'Nothing is overdue'} note={lateCount > 0 ? 'text-busy' : 'text-ok'} />}
       </div>
 
       {(r.amenities.owedCents > 0 || r.amenities.collectedCents > 0) && (
@@ -104,7 +104,7 @@ export default function FinanceOverview() {
                   <span className="font-semibold">{o.name}</span>
                   <span className="flex items-center gap-3">
                     <span className="num font-semibold">{money(o.owedCents, cur)}</span>
-                    {(can(user, 'front_desk') || can(user, 'invoices')) && <CollectButton memberId={o.memberId} label="Mark collected" />}
+                    {show.collectAmenities && <CollectButton memberId={o.memberId} label="Mark collected" />}
                   </span>
                 </li>
               ))}
@@ -162,14 +162,16 @@ export default function FinanceOverview() {
         </Section>
       )}
 
-      {invoicing && lateCount > 0 && (
+      {show.owed && lateCount > 0 && (
         <p className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-busy/25 bg-busy-wash px-4 py-3 text-sm">
           <span>
             <strong>{lateCount} {lateCount === 1 ? 'invoice is' : 'invoices are'} overdue</strong>, {moneyWhole(lateCents, cur)} in all.
           </span>
-          <Link to="/finance/invoices" className="font-semibold underline underline-offset-2">
-            See the invoices
-          </Link>
+          {show.invoicesLink && (
+            <Link to="/finance/invoices" className="font-semibold underline underline-offset-2">
+              See the invoices
+            </Link>
+          )}
         </p>
       )}
 
@@ -191,7 +193,7 @@ export default function FinanceOverview() {
         </Section>
       </div>
 
-      {invoicing && (
+      {show.owed && (
         <Section title="Who still owes you" aside={moneyWhole(owedCents, cur)}>
           <div className="surface-table">
             <table className="tbl">

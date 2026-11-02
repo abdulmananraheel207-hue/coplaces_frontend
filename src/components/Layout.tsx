@@ -5,6 +5,7 @@ import { useQuery } from '@tanstack/react-query';
 import { api } from '../api';
 import { useAuth, useFeature } from '../auth';
 import { accessLabel, can } from '../lib/permissions';
+import { anyFinance } from '../lib/access';
 import { SubscriptionBanner } from './SubscriptionBanner';
 import { initials } from './ui';
 import type { ReactNode } from 'react';
@@ -111,14 +112,11 @@ function UserFooter({ name, role, onLogout }: { name: string; role: string; onLo
 }
 
 export function StaffShell() {
-  const { user, locations, location, setLocationId, logout } = useAuth();
+  const { user, org, locations, location, setLocationId, logout } = useAuth();
   const [open, setOpen] = useState(false);
   const route = useRoute();
   useEffect(() => setOpen(false), [route.pathname]);
   if (!user || !location) return null;
-  const invoicing = useFeature('invoicing');
-  const expenses = useFeature('expenses');
-  const reports = useFeature('reports');
   // How many problems are waiting, shown on the Maintenance link for whoever handles them.
   const waiting = useQuery({
     queryKey: ['issues', location.id, 'waiting'],
@@ -127,7 +125,7 @@ export function StaffShell() {
     refetchInterval: 60_000,
   });
   const waitingCount = Object.values(waiting.data ?? {}).reduce((a, b) => a + b, 0);
-  const showMoney = (invoicing && can(user, 'invoices')) || (expenses && can(user, 'expenses')) || (reports && can(user, 'reports'));
+  const showMoney = anyFinance(user, org?.features);
 
   return (
     <div className="min-h-dvh lg:grid lg:grid-cols-[16rem_minmax(0,1fr)]">
