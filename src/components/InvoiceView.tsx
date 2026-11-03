@@ -95,7 +95,7 @@ export function InvoiceView({ backTo, staff }: { backTo: string; staff: boolean 
   const removePayment = useMutation({
     mutationFn: (paymentId: string) => api.del(`/payments/${paymentId}`),
     onSuccess: () => {
-      toast.ok('Payment removed');
+      toast.ok('Payment taken back');
       void refresh(...FINANCE_KEYS);
     },
     onError: (e) => toast.error(errorMessage(e)),

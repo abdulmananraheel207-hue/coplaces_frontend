@@ -123,7 +123,7 @@ export default function FinanceOverview() {
       <div className={`grid gap-3 sm:grid-cols-2 ${show.owed ? 'xl:grid-cols-4' : 'xl:grid-cols-3'}`}>
         <Figure label="Money in" value={moneyWhole(inCents, cur)} sub={inChange.text} note={inChange.tone} />
         <Figure label="Money out" value={moneyWhole(outCents, cur)} sub={outChange.text} note={outChange.tone} />
-        <Figure label={profit ? 'Profit' : 'Loss'} value={moneyWhole(Math.abs(netCents), cur)} tone={resultTone === 'neutral' ? undefined : resultTone} sub={taxCents > 0 ? `Before ${moneyWhole(taxCents, cur)} tax collected · ${marginNote(netCents, incomeCents)}` : marginNote(netCents, incomeCents)} />
+        <Figure label={profit ? 'Profit' : 'Loss'} value={moneyWhole(Math.abs(netCents), cur)} tone={resultTone === 'neutral' ? undefined : resultTone} sub={taxCents > 0 ? `Not counting ${moneyWhole(taxCents, cur)} tax collected · ${marginNote(netCents, incomeCents)}` : marginNote(netCents, incomeCents)} />
         {show.owed && <Figure label="Still owed to you, today" value={moneyWhole(owedCents, cur)} sub={lateCount > 0 ? `${moneyWhole(lateCents, cur)} is overdue` : 'Nothing is overdue'} note={lateCount > 0 ? 'text-busy' : 'text-ok'} />}
       </div>
 
