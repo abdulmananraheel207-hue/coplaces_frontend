@@ -85,7 +85,11 @@ export default function Payments() {
                     </Link>
                   </td>
                   <td>{p.memberName}</td>
-                  <td>{METHOD_LABEL[p.method]}</td>
+                  <td>
+                    {METHOD_LABEL[p.method]}
+                    {p.reversesPaymentId && <span className="ml-2 rounded bg-plaster px-1.5 py-0.5 text-xs font-semibold">Taken back</span>}
+                    {p.reversedAt && !p.reversesPaymentId && <span className="ml-2 rounded bg-plaster px-1.5 py-0.5 text-xs font-semibold text-slate">Later taken back</span>}
+                  </td>
                   <td className="text-slate">{p.reference || '—'}</td>
                   <td className="r font-semibold">{money(p.amountCents, loc.currency)}</td>
                 </tr>

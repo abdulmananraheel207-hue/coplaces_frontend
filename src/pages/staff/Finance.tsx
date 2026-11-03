@@ -7,7 +7,7 @@ import { financeHome } from '../../lib/access';
 import { DEFAULT_PERIOD, keepWithinLocation, parsePeriod, periodRange, withPeriod, type Period } from '../../lib/financePeriod';
 import { Loading, PageHeader, Segmented, Tabs } from '../../components/ui';
 import { todayIn } from '../../lib/time';
-import type { FinanceReport } from '../../types';
+import type { FinanceCharts, FinanceReport } from '../../types';
 
 export { PERIOD_WORD } from '../../lib/financePeriod';
 
@@ -48,6 +48,18 @@ export function useFinanceReport(months: Period) {
     queryKey: ['reports', loc.id, from, to],
     queryFn: async (): Promise<PeriodReport> => ({ ...(await api.get<FinanceReport>('/reports/finance', { locationId: loc.id, from, to })), months }),
     placeholderData: keepWithinLocation(loc.id),
+  });
+}
+
+/** The finance charts for the same period as the report: month-end balances, invoices by status, debtors, income by plan and space. */
+export function useFinanceCharts(months: Period, enabled = true) {
+  const loc = useLocation();
+  const { from, to } = periodRange(months, todayIn(loc.timezone));
+  return useQuery({
+    queryKey: ['reports', loc.id, from, to, 'charts'],
+    queryFn: () => api.get<FinanceCharts>('/reports/finance/charts', { locationId: loc.id, from, to }),
+    placeholderData: keepWithinLocation(loc.id),
+    enabled,
   });
 }
 

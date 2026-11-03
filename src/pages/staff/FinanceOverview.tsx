@@ -1,27 +1,33 @@
-import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router';
-import { api } from '../../api';
 import { useAuth, useLocation } from '../../auth';
 import { CollectButton } from '../../components/Amenities';
 import { BarList } from '../../components/charts/BarList';
 import { ColumnChart } from '../../components/charts/ColumnChart';
-import { MONEY_COLOR } from '../../components/charts/palette';
+import { MONEY_COLOR, SERIES } from '../../components/charts/palette';
+
+const SERIES_PLAN = SERIES[2];
+const SERIES_SPACE = SERIES[6];
 import { SegmentedBar } from '../../components/charts/SegmentedBar';
 import { depositRows } from '../../components/ContractPrint';
 import { CountText } from '../../components/Count';
 import { Button, ErrorNote, Loading, Section } from '../../components/ui';
 import { canUse, overviewSections } from '../../lib/access';
-import { agingParts, agingTotal, billedVsCollected, incomeMix, INCOME_LABEL, invoiceProgress, moneyByMonth, ranked, shareText, topDebtors } from '../../lib/financeCharts';
-import { keepWithinLocation, withPeriod } from '../../lib/financePeriod';
+import { agingParts, agingTotal, balancesByMonth, billedVsCollected, collectionRate, debtorsFrom, incomeMix, INCOME_LABEL, invoiceProgressFrom, moneyByMonth, ranked, shareText } from '../../lib/financeCharts';
+import { withPeriod } from '../../lib/financePeriod';
 import { downloadCsv, METHOD_LABEL, money, moneyWhole, titleCase } from '../../lib/format';
 import { marginNote, toneOf } from '../../lib/profitLoss';
 import { fmtDate, fmtMonth, localDateOf } from '../../lib/time';
-import type { InvoiceRow } from '../../types';
-import { PERIOD_WORD, PeriodPicker, useFinancePeriod, useFinanceReport } from './Finance';
+import { PERIOD_WORD, PeriodPicker, useFinanceCharts, useFinancePeriod, useFinanceReport } from './Finance';
 
 export { INCOME_LABEL };
 
-const MOVE_WORD = { received: 'Security deposit received', refunded: 'Security deposit returned', kept: 'Security deposit kept as income', advance: 'Advance received' } as const;
+const MOVE_WORD = { received: 'Security deposit received', refunded: 'Security deposit returned', kept: 'Security deposit kept as income', advance: 'Advance received', advance_refund: 'Advance given back' } as const;
+
+/** Money that came in without a payment method of its own, as the server names it in "money in by method". */
+const MONEY_IN_LABEL: Record<string, string> = { kept_deposit: 'Security deposits kept', other: 'Other' };
+const methodLabel = (m: string) => MONEY_IN_LABEL[m] ?? METHOD_LABEL[m as keyof typeof METHOD_LABEL] ?? titleCase(m);
+/** What an income category is called on the overview. */
+const CATEGORY_LABEL: Record<string, string> = { plan: 'Plans and shifts', rent: 'Rent (contracts)', booking: 'Room and desk bookings', manual: 'Other charges', amenity: 'Amenities', advance: 'Advances', kept_deposit: 'Security deposits kept' };
 
 /** "Up 12% on the period before", or nothing to compare with. */
 function change(now: number, before: number, goodWhenUp: boolean) {
@@ -49,15 +55,6 @@ function Figure({ label, value, sub, tone, note }: { label: string; value: strin
   );
 }
 
-/** A note under a chart built from invoice rows when they do not add up to the report's own figure. */
-function Mismatch({ what }: { what: string }) {
-  return (
-    <p role="status" className="mt-2 rounded-lg border border-signal-deep/30 bg-hold-wash px-3 py-2 text-xs">
-      These invoices add up to a different total than the report's {what}, so this chart may be missing some (the list holds the newest 500). The figures at the top of the page are the reliable ones.
-    </p>
-  );
-}
-
 const monthName = (m: string) => fmtMonth(m);
 const monthShort = (m: string, i: number) => {
   const [y, mm] = m.split('-');
@@ -73,20 +70,9 @@ export default function FinanceOverview() {
   const mayInvoices = canUse(user, org?.features, 'invoices');
   const loc = useLocation();
   const q = useFinanceReport(months);
-
-  // Invoice rows for the invoice charts, only for people who may read invoices. Both are checked against the report.
-  const invoices = useQuery({
-    queryKey: ['invoices', loc.id, 'overview', 'all'],
-    queryFn: () => api.get<InvoiceRow[]>('/invoices', { locationId: loc.id }),
-    enabled: mayInvoices,
-    placeholderData: keepWithinLocation(loc.id),
-  });
-  const open = useQuery({
-    queryKey: ['invoices', loc.id, 'overview', 'open'],
-    queryFn: () => api.get<InvoiceRow[]>('/invoices', { locationId: loc.id, status: 'open' }),
-    enabled: mayInvoices && show.owed,
-    placeholderData: keepWithinLocation(loc.id),
-  });
+  // The invoice and debtor charts, and the month-end balances, come from the server's charts: worked out over every invoice, in one
+  // request, instead of downloading the invoice lists here. It runs alongside the report.
+  const charts = useFinanceCharts(months);
 
   if (q.isLoading) return <Loading />;
   if (q.error || !q.data) return <ErrorNote error={q.error} onRetry={() => void q.refetch()} retrying={q.isFetching} />;
@@ -94,7 +80,11 @@ export default function FinanceOverview() {
   // While a new period loads, the figures on screen are still the old period's, so the words follow the figures.
   const updating = q.isPlaceholderData;
   const cur = r.currency;
-  const { collectedCents: inCents, expensesCents: outCents, netCents } = r.totals;
+  const { collectedCents: inCents, expensesCents: outCents } = r.totals;
+  // The result is the profit and loss's: income before tax, less costs. Tax collected is owed to the government, not profit.
+  const taxCents = r.totals.taxCollectedCents ?? 0;
+  const incomeCents = r.totals.incomeCents ?? inCents;
+  const netCents = r.totals.profitCents ?? r.totals.netCents;
   const profit = netCents >= 0;
   const resultTone = toneOf(netCents);
   const ag = r.receivablesAging;
@@ -105,14 +95,18 @@ export default function FinanceOverview() {
   const outChange = change(outCents, r.previous.expensesCents, false);
   const when = PERIOD_WORD[r.months];
   const mix = incomeMix(r);
-  const progress = invoices.data ? invoiceProgress(invoices.data, r.from, r.to, r.totals.invoicedCents) : null;
-  const debtors = open.data ? topDebtors(open.data, owedCents) : null;
+  const c = charts.data && charts.data.from === r.from && charts.data.to === r.to ? charts.data : null;
+  const progress = c ? invoiceProgressFrom(c.invoicesByStatus) : null;
+  const debtors = c ? debtorsFrom(c.topDebtors, owedCents) : null;
+  const rate = c ? collectionRate(c) : null;
+  const byCategory = ranked((r.incomeByCategory ?? []).map((x) => ({ key: x.category, label: CATEGORY_LABEL[x.category] ?? titleCase(x.category), cents: x.amountCents })));
 
   return (
     <div className={`space-y-10 transition-opacity ${updating ? 'opacity-60' : ''}`} aria-busy={updating}>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="max-w-2xl text-[15px]">
-          In {when} you took in <strong className="num">{moneyWhole(inCents, cur)}</strong> and spent <strong className="num">{moneyWhole(outCents, cur)}</strong>
+          In {when} you took in <strong className="num">{moneyWhole(inCents, cur)}</strong>
+          {taxCents > 0 && <> (of which <strong className="num">{moneyWhole(taxCents, cur)}</strong> is tax)</>} and spent <strong className="num">{moneyWhole(outCents, cur)}</strong>
           {inCents === 0 && outCents === 0 ? '.' : netCents === 0 ? ', so you broke even.' : profit ? (
             <>
               , leaving a <strong className="num text-ok">profit of {moneyWhole(netCents, cur)}</strong>.
@@ -129,7 +123,7 @@ export default function FinanceOverview() {
       <div className={`grid gap-3 sm:grid-cols-2 ${show.owed ? 'xl:grid-cols-4' : 'xl:grid-cols-3'}`}>
         <Figure label="Money in" value={moneyWhole(inCents, cur)} sub={inChange.text} note={inChange.tone} />
         <Figure label="Money out" value={moneyWhole(outCents, cur)} sub={outChange.text} note={outChange.tone} />
-        <Figure label={profit ? 'Profit' : 'Loss'} value={moneyWhole(Math.abs(netCents), cur)} tone={resultTone === 'neutral' ? undefined : resultTone} sub={marginNote(netCents, inCents)} />
+        <Figure label={profit ? 'Profit' : 'Loss'} value={moneyWhole(Math.abs(netCents), cur)} tone={resultTone === 'neutral' ? undefined : resultTone} sub={taxCents > 0 ? `Before ${moneyWhole(taxCents, cur)} tax collected · ${marginNote(netCents, incomeCents)}` : marginNote(netCents, incomeCents)} />
         {show.owed && <Figure label="Still owed to you, today" value={moneyWhole(owedCents, cur)} sub={lateCount > 0 ? `${moneyWhole(lateCents, cur)} is overdue` : 'Nothing is overdue'} note={lateCount > 0 ? 'text-busy' : 'text-ok'} />}
       </div>
 
@@ -149,7 +143,7 @@ export default function FinanceOverview() {
       <Section title="Money in and out, month by month" aside={<Link to={withPeriod('/finance/profit-loss', months)} className="font-semibold text-ink underline underline-offset-2">Full profit and loss</Link>}>
         <div className="surface p-4 sm:p-5">
           <ColumnChart data={moneyByMonth(r)} currency={cur} label="Money in, money out and the net result, month by month" categoryLabel={monthName} shortLabel={monthShort} />
-          <p className="mt-3 text-xs text-slate">Money in is everything received: invoice payments, advances, security deposits kept and amenities collected. Money out is the expenses recorded. The same figures as the profit and loss.</p>
+          <p className="mt-3 text-xs text-slate">Money in is everything received: invoice payments, advances, security deposits kept and amenities collected, tax included. Money out is the expenses recorded. The profit and loss counts the same income without the tax.</p>
         </div>
       </Section>
 
@@ -157,7 +151,10 @@ export default function FinanceOverview() {
         <Section title="Invoiced and received, month by month">
           <div className="surface p-4 sm:p-5">
             <ColumnChart data={billedVsCollected(r)} currency={cur} label="What was invoiced and the money that came in, month by month" categoryLabel={monthName} shortLabel={monthShort} />
-            <p className="mt-3 text-xs text-slate">Invoiced counts invoices by the day they were issued, voided ones left out. Money in counts payments by the day they arrived, so a month's invoices are often paid the month after.</p>
+            <p className="mt-3 text-xs text-slate">
+              Invoiced counts invoices by the day they were issued, voided ones left out, including the part an advance paid. Money in counts payments by the day they arrived, so a month's invoices are often paid the month after.
+              {rate !== null && <> Over {when}, money in came to <strong className="num">{rate}%</strong> of what was invoiced.</>}
+            </p>
           </div>
         </Section>
       )}
@@ -182,24 +179,42 @@ export default function FinanceOverview() {
             empty="No expenses recorded in this period."
           />
         </Section>
-        <Section title="How members paid" aside="Invoice payments only">
+        <Section title="How the money came in" aside="All money in">
           <BarList
-            rows={ranked(r.paymentsByMethod.map((p) => ({ key: p.method, label: METHOD_LABEL[p.method as keyof typeof METHOD_LABEL] ?? titleCase(p.method), cents: p.amountCents })))}
+            rows={ranked(r.paymentsByMethod.map((p) => ({ key: p.method, label: methodLabel(p.method), cents: p.amountCents })))}
             currency={cur}
             color={MONEY_COLOR.in}
-            label="Invoice payments by method"
-            empty="No invoice payments in this period."
+            label="Money in by method"
+            empty="No money came in during this period."
           />
+        </Section>
+      </div>
+
+      <div className="grid gap-10 lg:grid-cols-2">
+        <Section title="What the income was for" aside="Before tax">
+          <BarList rows={byCategory} currency={cur} color={MONEY_COLOR.in} label="Income by what was sold" empty="No income in this period." />
+        </Section>
+        <Section title="Income by plan and by space" aside="Before tax">
+          {charts.isLoading ? (
+            <Loading />
+          ) : charts.error ? (
+            <ErrorNote error={charts.error} onRetry={() => void charts.refetch()} retrying={charts.isFetching} />
+          ) : c ? (
+            <div className="space-y-5">
+              <BarList rows={ranked(c.incomeByPlan.map((x) => ({ key: x.planId, label: x.name || 'A plan', cents: x.amountCents })))} currency={cur} color={SERIES_PLAN} label="Income by plan" empty="No plan income in this period." />
+              <BarList rows={ranked(c.incomeBySpace.map((x) => ({ key: x.resourceId, label: x.name || 'A space', sub: titleCase(x.kind), cents: x.amountCents })))} currency={cur} color={SERIES_SPACE} label="Income by space" empty="No income tied to a single space in this period." />
+            </div>
+          ) : null}
         </Section>
       </div>
 
       {mayInvoices && (
         <Section title="Invoices issued in this period" aside={progress ? `${progress.count} ${progress.count === 1 ? 'invoice' : 'invoices'}` : undefined}>
           <div className="surface p-4 sm:p-5">
-            {invoices.isLoading ? (
+            {charts.isLoading ? (
               <Loading />
-            ) : invoices.error ? (
-              <ErrorNote error={invoices.error} onRetry={() => void invoices.refetch()} retrying={invoices.isFetching} />
+            ) : charts.error ? (
+              <ErrorNote error={charts.error} onRetry={() => void charts.refetch()} retrying={charts.isFetching} />
             ) : progress && progress.totalCents > 0 ? (
               <>
                 <p className="mb-3 text-[15px]">
@@ -212,7 +227,6 @@ export default function FinanceOverview() {
                   )}
                 </p>
                 <SegmentedBar parts={progress.parts} currency={cur} label="Invoices issued in this period: paid, to pay and overdue" />
-                {!progress.matches && <Mismatch what="invoiced figure" />}
               </>
             ) : (
               <p className="text-sm text-slate">No invoices were issued in this period.</p>
@@ -227,24 +241,29 @@ export default function FinanceOverview() {
             <div className="surface p-4 sm:p-5">
               <SegmentedBar parts={agingParts(r)} currency={cur} label="What is owed, by how late it is" />
             </div>
+            {c && c.months.length > 1 && (
+              <div className="surface p-4 sm:p-5">
+                <h3 className="mb-2 text-sm font-semibold">At the end of each month</h3>
+                <ColumnChart data={balancesByMonth(c)} currency={cur} label="What was owed, the overdue part, and the security deposits held, at the end of each month" categoryLabel={monthName} shortLabel={monthShort} />
+              </div>
+            )}
             {mayInvoices && (
               <div>
                 <h3 className="mb-2 text-sm font-semibold">Largest balances</h3>
-                {open.isLoading ? (
+                {charts.isLoading ? (
                   <Loading />
-                ) : open.error ? (
-                  <ErrorNote error={open.error} onRetry={() => void open.refetch()} retrying={open.isFetching} />
+                ) : charts.error ? (
+                  <ErrorNote error={charts.error} onRetry={() => void charts.refetch()} retrying={charts.isFetching} />
                 ) : debtors ? (
                   <>
                     <BarList
                       rows={debtors.rows.map((d) => ({ ...d, sub: [d.sub, d.overdueCents > 0 ? `${money(d.overdueCents, cur)} overdue` : '', `${d.count} ${d.count === 1 ? 'invoice' : 'invoices'}`].filter(Boolean).join(' · ') }))}
-                      others={debtors.others ? { label: `${debtors.others.count} more ${debtors.others.count === 1 ? 'member' : 'members'}`, cents: debtors.others.cents } : null}
+                      others={debtors.others ? { label: 'Everyone else who owes', cents: debtors.others.cents } : null}
                       currency={cur}
                       color={MONEY_COLOR.in}
                       label="Open balances by member"
                       empty="Nobody owes anything."
                     />
-                    {!debtors.matches && <Mismatch what="total owed" />}
                   </>
                 ) : null}
               </div>
@@ -287,7 +306,7 @@ export default function FinanceOverview() {
             <Figure label="Security deposits you hold" value={moneyWhole(r.deposits.heldCents, cur)} sub="Belongs to members, not income" />
             <Figure label="Security deposits received" value={moneyWhole(r.deposits.receivedCents, cur)} sub={`In ${when}`} />
             <Figure label="Security deposits returned" value={moneyWhole(r.deposits.refundedCents, cur)} sub={`In ${when}`} />
-            <Figure label="Advances received" value={moneyWhole(r.deposits.advanceCents, cur)} sub="Income, already in money in" />
+            <Figure label="Advances received" value={moneyWhole(r.deposits.advanceCents, cur)} sub={r.unapplied && r.unapplied.advancesCents > 0 ? `Income, already in money in · ${moneyWhole(r.unapplied.advancesCents, cur)} not yet used on invoices` : 'Income, already in money in'} />
             <Figure label="Security deposits kept" value={moneyWhole(r.deposits.keptCents, cur)} sub="Income, already in money in" />
           </div>
           {r.deposits.movements.length > 0 && (

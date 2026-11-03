@@ -1,4 +1,4 @@
-import type { FinanceReport, IncomeKind, InvoiceRow } from '../types';
+import type { FinanceCharts, FinanceReport, IncomeKind, InvoiceRow } from '../types';
 import { AGING_RAMP, MONEY_COLOR, SERIES, STATUS_COLOR } from '../components/charts/palette';
 
 /**
@@ -171,4 +171,46 @@ export function shareText(part: number, whole: number) {
   const pct = (part / whole) * 100;
   if (pct < 1) return '<1%';
   return `${Math.round(pct)}%`;
+}
+
+// ---- From GET /reports/finance/charts: the server works these out over every invoice, so nothing is left out or capped.
+
+/** Invoices issued in the period: paid, still to pay and not yet late, and overdue. Paid counts what was paid on open ones too. */
+export function invoiceProgressFrom(s: FinanceCharts['invoicesByStatus']) {
+  const total = s.paid.totalCents + s.open.totalCents;
+  const owed = s.open.owedCents;
+  const late = s.overdue.owedCents;
+  const parts: Part[] = [
+    { key: 'paid', label: 'Paid', color: STATUS_COLOR.good, cents: total - owed, count: s.paid.count },
+    { key: 'open', label: 'To pay, not yet due', color: STATUS_COLOR.pending, cents: owed - late, count: s.open.count - s.overdue.count },
+    { key: 'overdue', label: 'Overdue', color: STATUS_COLOR.critical, cents: late, count: s.overdue.count },
+  ];
+  return { parts, totalCents: total, count: s.paid.count + s.open.count, paidShare: total > 0 ? (total - owed) / total : null };
+}
+
+/** The largest open balances from the server, the first `limit` of them, then everyone else owing in one line. */
+export function debtorsFrom(list: FinanceCharts['topDebtors'], owedCents: number, limit = 8) {
+  const rows = list.slice(0, limit).map((d) => ({ key: d.memberId, label: d.name, sub: d.company || undefined, cents: d.owedCents, count: d.invoices, overdueCents: d.overdueCents }));
+  const shown = rows.reduce((s, r) => s + r.cents, 0);
+  const rest = owedCents - shown;
+  return { rows, others: rest > 0 ? { cents: rest } : null };
+}
+
+/** What was owed, and the overdue part of it, at the end of each month, with the security deposits held then. */
+export function balancesByMonth(c: FinanceCharts): ColumnData {
+  return {
+    categories: c.months.map((m) => m.month),
+    series: [
+      { key: 'owed', label: 'Owed to you at month end', color: MONEY_COLOR.invoiced, values: c.months.map((m) => m.outstandingEndCents) },
+      { key: 'overdue', label: 'Of which overdue', color: STATUS_COLOR.critical, values: c.months.map((m) => m.overdueEndCents) },
+      { key: 'deposits', label: 'Security deposits held', color: SERIES[6], values: c.months.map((m) => m.depositsHeldEndCents) },
+    ],
+  };
+}
+
+/** The share of what was billed in the whole period that was collected in it, as a whole percentage, or null with nothing billed. */
+export function collectionRate(c: FinanceCharts) {
+  const billed = c.months.reduce((s, m) => s + m.billedCents, 0);
+  const collected = c.months.reduce((s, m) => s + m.collectedCents, 0);
+  return billed > 0 ? Math.round((collected / billed) * 100) : null;
 }

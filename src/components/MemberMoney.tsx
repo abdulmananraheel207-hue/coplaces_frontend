@@ -1,7 +1,8 @@
 import { useState, type FormEvent } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import { api, errorMessage } from '../api';
-import { useLocation } from '../auth';
+import { useAuth, useLocation } from '../auth';
+import { can } from '../lib/permissions';
 import { useToast } from './toast';
 import { Button, Chip, ErrorNote, Field, Input, Modal, Section, Select } from './ui';
 import { fromCents, METHOD_LABEL, money, toCents } from '../lib/format';
@@ -61,7 +62,7 @@ export function MoneyFields({ value, onChange, locked }: { value: MoneyState; on
   );
 }
 
-const ENTRY_WORD = { advance: 'Advance received', received: 'Security deposit received', refunded: 'Security deposit returned', kept: 'Security deposit kept by us' } as const;
+const ENTRY_WORD = { advance: 'Advance received', advance_refund: 'Advance given back', received: 'Security deposit received', refunded: 'Security deposit returned', kept: 'Security deposit kept by us' } as const;
 const depositTone = { pending: 'hold', held: 'ok', refunded: 'idle', forfeited: 'busy' } as const;
 const depositLabel = { pending: 'None', held: 'Held', refunded: 'Returned', forfeited: 'Kept' } as const;
 
@@ -125,10 +126,74 @@ function SettleForm({ m, onDone }: { m: MemberDetail; onDone: () => void }) {
   );
 }
 
+/** Gives back what is left of a member's advance that no invoice has used. A billing control on the server. */
+function AdvanceRefundForm({ m, left, onDone }: { m: MemberDetail; left: number; onDone: () => void }) {
+  const loc = useLocation();
+  const toast = useToast();
+  const refresh = useRefresh();
+  const [amount, setAmount] = useState(fromCents(left));
+  const [method, setMethod] = useState<PaymentMethod>('cash');
+  const [reference, setReference] = useState('');
+  const give = useMutation({
+    mutationFn: () => {
+      const c = toCents(amount);
+      if (c === null || c <= 0) throw new Error('Enter the amount to give back as a number above 0');
+      if (c > left) throw new Error(`At most ${money(left, loc.currency)} is left to give back`);
+      return api.post(`/members/${m.id}/advance-refund`, { amountCents: c, method, reference });
+    },
+    onSuccess: () => {
+      toast.ok('Advance given back');
+      void refresh(...FINANCE_KEYS);
+      onDone();
+    },
+  });
+  return (
+    <form
+      onSubmit={(e: FormEvent) => {
+        e.preventDefault();
+        give.mutate();
+      }}
+      className="space-y-4"
+    >
+      <p className="text-sm">
+        {money(left, loc.currency)} of {m.name}'s advance has not been taken off any invoice. What you give back counts against income on the day it goes back, and can no longer come off an invoice.
+      </p>
+      <Field label={`Amount to give back (${loc.currency})`}>
+        <Input inputMode="decimal" required value={amount} onChange={(e) => setAmount(e.target.value)} />
+      </Field>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <Field label="How was it paid back">
+          <Select value={method} onChange={(e) => setMethod(e.target.value as PaymentMethod)}>
+            {Object.entries(METHOD_LABEL).map(([k, v]) => (
+              <option key={k} value={k}>
+                {v}
+              </option>
+            ))}
+          </Select>
+        </Field>
+        <Field label="Reference">
+          <Input value={reference} maxLength={100} onChange={(e) => setReference(e.target.value)} />
+        </Field>
+      </div>
+      {give.error && <ErrorNote error={new Error(errorMessage(give.error))} />}
+      <div className="flex justify-end gap-2">
+        <Button onClick={onDone}>Cancel</Button>
+        <Button type="submit" variant="primary" disabled={give.isPending}>
+          Give back
+        </Button>
+      </div>
+    </form>
+  );
+}
+
 /** A member's advance and security deposit on their page, with the record of every movement and a way to settle the deposit. */
 export function MoneySection({ m, canSettle }: { m: MemberDetail; canSettle: boolean }) {
   const loc = useLocation();
   const [settling, setSettling] = useState(false);
+  const [refunding, setRefunding] = useState(false);
+  // Giving money back, or keeping a deposit, is a billing control on the server.
+  const { user } = useAuth();
+  const billing = can(user, 'billing_admin');
   if (!m.advanceCents && !m.depositCents && !m.moneyEntries.length) return null;
   const left = m.advanceCents - m.advanceUsedCents;
   return (
@@ -138,6 +203,11 @@ export function MoneySection({ m, canSettle }: { m: MemberDetail; canSettle: boo
           <p>
             <strong>Advance {money(m.advanceCents, loc.currency)}.</strong> {money(m.advanceUsedCents, loc.currency)} has been taken off invoices
             {left > 0 ? `, ${money(left, loc.currency)} is left for the next one.` : ', so it is all used.'}
+            {left > 0 && billing && (
+              <Button small className="ml-2" onClick={() => setRefunding(true)}>
+                Give back what is left
+              </Button>
+            )}
           </p>
         )}
         {m.depositCents > 0 && (
@@ -147,7 +217,7 @@ export function MoneySection({ m, canSettle }: { m: MemberDetail; canSettle: boo
             </span>
             <Chip tone={depositTone[m.depositStatus]}>{depositLabel[m.depositStatus]}</Chip>
             {m.depositStatus === 'refunded' && <span className="text-slate">{money(m.depositReturnedCents, loc.currency)} returned</span>}
-            {m.depositStatus === 'held' && canSettle && (
+            {m.depositStatus === 'held' && canSettle && billing && (
               <Button small onClick={() => setSettling(true)}>
                 Settle at the end of the plan
               </Button>
@@ -181,6 +251,9 @@ export function MoneySection({ m, canSettle }: { m: MemberDetail; canSettle: boo
       </div>
       <Modal open={settling} onClose={() => setSettling(false)} title="Settle the security deposit">
         {settling && <SettleForm m={m} onDone={() => setSettling(false)} />}
+      </Modal>
+      <Modal open={refunding} onClose={() => setRefunding(false)} title="Give back the advance">
+        {refunding && <AdvanceRefundForm m={m} left={left} onDone={() => setRefunding(false)} />}
       </Modal>
     </Section>
   );

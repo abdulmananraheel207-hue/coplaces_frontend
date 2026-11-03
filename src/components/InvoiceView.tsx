@@ -209,23 +209,31 @@ export function InvoiceView({ backTo, staff }: { backTo: string; staff: boolean 
             <div className="overflow-x-auto">
               <table className="tbl">
                 <tbody>
-                  {inv.payments.map((p) => (
-                    <tr key={p.id}>
-                      <td className="num whitespace-nowrap">{fmtDate(localDateOf(p.paidAt, inv.timezone))}</td>
-                      <td>
-                        {METHOD_LABEL[p.method]}
-                        {p.reference && <span className="text-slate">, {p.reference}</span>}
-                      </td>
-                      <td className="r">{money(p.amountCents, cur)}</td>
-                      {staff && manager && (
-                        <td className="r no-print">
-                          <ConfirmButton question="Remove this payment? The balance goes back up." yes="Yes, remove" busy={removePayment.isPending} onConfirm={() => removePayment.mutate(p.id)}>
-                            Remove
-                          </ConfirmButton>
+                  {inv.payments.map((p) => {
+                    // Payments are never deleted: taking one back adds a reversal, dated when it was taken back.
+                    const reversal = !!p.reversesPaymentId;
+                    const reversed = !!p.reversedAt;
+                    return (
+                      <tr key={p.id} className={reversed ? 'text-slate' : undefined}>
+                        <td className="num whitespace-nowrap">{fmtDate(localDateOf(p.paidAt, inv.timezone))}</td>
+                        <td>
+                          {reversal ? 'Taken back' : METHOD_LABEL[p.method]}
+                          {reversal ? p.notes && p.notes !== 'Payment reversed' && <span className="text-slate">, {p.notes}</span> : p.reference && <span className="text-slate">, {p.reference}</span>}
+                          {reversed && <span className="ml-2 rounded bg-plaster px-1.5 py-0.5 text-xs font-semibold">Taken back</span>}
                         </td>
-                      )}
-                    </tr>
-                  ))}
+                        <td className={`r ${reversed ? 'line-through' : ''}`}>{money(p.amountCents, cur)}</td>
+                        {staff && manager && (
+                          <td className="r no-print">
+                            {!reversal && !reversed && (
+                              <ConfirmButton question="Take this payment back? The balance goes back up, and a reversal is recorded today." yes="Yes, take it back" busy={removePayment.isPending} onConfirm={() => removePayment.mutate(p.id)}>
+                                Take back
+                              </ConfirmButton>
+                            )}
+                          </td>
+                        )}
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
