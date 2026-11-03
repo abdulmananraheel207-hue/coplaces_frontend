@@ -19,11 +19,11 @@ export const useFloorObjects = (locationId: string, enabled = true) =>
 export const useFloors = (locationId: string) =>
   useQuery({ queryKey: ['floors', locationId], queryFn: () => api.get<{ floors: string[]; limit: number | null }>('/floors', { locationId }) });
 
-export const usePresent = (locationId: string) =>
+export const usePresent = (locationId: string, every = 30_000) =>
   useQuery({
     queryKey: ['attendance', locationId, 'open'],
     queryFn: () => api.get<AttendanceRow[]>('/attendance', { locationId, open: 1 }),
-    refetchInterval: 30_000,
+    refetchInterval: every,
   });
 
 export const useVisitors = (locationId: string, params: { date?: string; status?: string }, enabled = true) =>

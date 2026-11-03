@@ -46,6 +46,8 @@ export interface SpaceItem {
   /** Next free start time, for rooms that are in use now. */
   freeFrom?: string;
   bookable: boolean;
+  /** Someone checked in is drawn sitting here by the live view, so the desk does not draw its own. */
+  live?: boolean;
   /** What it costs, when it has a price of its own: "Rs 2,000 an hour". */
   rate?: string;
   /** What members read before booking. */

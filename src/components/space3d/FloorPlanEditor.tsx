@@ -90,7 +90,9 @@ import {
   anyCollision,
   applyTemplate,
   boxOf,
+  afterSave,
   buildSave,
+  type SaveBody,
   duplicateThings,
   fits,
   floorsOf,
@@ -270,7 +272,8 @@ export default function FloorPlanEditor({
   const draft = hist.present;
   const draftRef = useRef(draft);
   draftRef.current = draft;
-  const dirty = hist.past.length > 0;
+  // What the server has, kept up to date as autosaves land. The draft is compared with this, not with what the page opened with.
+  const [stored, setStored] = useState({ resources, objects, floors: savedFloors });
 
   const commit = useCallback(
     (next: Draft) => setHist((h) => (next === h.present ? h : { past: [...h.past.slice(-59), h.present], present: next, future: [] })),
@@ -313,7 +316,7 @@ export default function FloorPlanEditor({
   const nextSerial = useCallback(() => ++serial.current, []);
   const overlay = useRef<HTMLDivElement>(null);
 
-  const takenNames = useMemo(() => resources.map((r) => r.name), [resources]);
+  const takenNames = useMemo(() => stored.resources.map((r) => r.name), [stored.resources]);
   const primary = selected.at(-1) ?? null;
   const single = selected.length === 1 ? (draft.things.find((t) => t.key === selected[0]) ?? null) : null;
   const group = useMemo(() => draft.things.filter((t) => selected.includes(t.key)), [draft, selected]);
@@ -606,24 +609,48 @@ export default function FloorPlanEditor({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [armed, tool, floor, undo, redo, turn, remove, nudge, duplicate, copy, paste]);
 
+  // --- saving ---
+  // Every change is saved a moment after it is made, so nothing is lost if the page is closed.
+  const issues = useMemo(() => problems(draft, stored.resources), [draft, stored.resources]);
+  const { body, changes } = useMemo(() => buildSave(locationId, draft, stored.resources, stored.objects), [locationId, draft, stored]);
+  const pending = changes.added + changes.changed + changes.removed > 0 || (body.floors ?? []).some((f) => !stored.floors.includes(f));
+  const [saved, setSaved] = useState(false);
+  const closeAfter = useRef(false);
+  const save = useMutation({
+    mutationFn: (v: { body: SaveBody; sent: Draft }) => api.put<{ created: string[]; createdObjects: string[] }>('/floor-plan', v.body),
+    onSuccess: (res, v) => {
+      const next = afterSave(locationId, v.sent, stored, { resources: res.created, objects: res.createdObjects });
+      setStored({ resources: next.resources, objects: next.objects, floors: [...new Set([...stored.floors, ...(v.body.floors ?? [])])] });
+      // From now on the new things carry their ids, in every state that undo and redo can reach.
+      if (next.ids.size) {
+        const give = (d: Draft): Draft => ({ ...d, things: d.things.map((t) => (next.ids.has(t.key) ? { ...t, id: next.ids.get(t.key)! } : t)) });
+        setHist((h) => ({ past: h.past.map(give), present: give(h.present), future: h.future.map(give) }));
+      }
+      setSaved(true);
+      void refresh('resources', 'floors', 'floor-objects', 'schedule', 'dashboard', 'assignments');
+      if (closeAfter.current) {
+        toast.ok('Floor plan saved');
+        onClose();
+      }
+    },
+    onError: () => {
+      closeAfter.current = false;
+    },
+  });
+
   useEffect(() => {
-    if (!dirty) return;
+    if (!pending || issues.length > 0 || save.isPending || save.isError) return;
+    const t = setTimeout(() => save.mutate({ body, sent: draft }), 1200);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pending, issues.length, save.isPending, save.isError, body]);
+
+  useEffect(() => {
+    if (!pending) return;
     const warn = (e: BeforeUnloadEvent) => e.preventDefault();
     window.addEventListener('beforeunload', warn);
     return () => window.removeEventListener('beforeunload', warn);
-  }, [dirty]);
-
-  // --- saving ---
-  const issues = useMemo(() => problems(draft, resources), [draft, resources]);
-  const { body, changes } = useMemo(() => buildSave(locationId, draft, resources, objects), [locationId, draft, resources, objects]);
-  const save = useMutation({
-    mutationFn: () => api.put('/floor-plan', body),
-    onSuccess: () => {
-      toast.ok('Floor plan saved');
-      void refresh('resources', 'floors', 'floor-objects', 'schedule', 'dashboard', 'assignments');
-      onClose();
-    },
-  });
+  }, [pending]);
 
   // An error from the last attempt is about a draft that has since changed.
   useEffect(() => {
@@ -632,6 +659,7 @@ export default function FloorPlanEditor({
   }, [draft]);
 
   const summary = [changes.added && `${changes.added} added`, changes.changed && `${changes.changed} changed`, changes.removed && `${changes.removed} removed`].filter(Boolean).join(', ');
+  const status = save.isPending ? 'Saving…' : save.isError ? 'Could not save. Your changes are still here.' : pending && issues.length ? 'Not saved yet. Fix the problems below.' : pending ? `Saving in a moment: ${summary}` : saved ? 'All changes saved' : 'No changes yet.';
   const sorted = [...floors].reverse();
   const suggestedFloor = String(Math.max(0, ...floors.map((f) => Number(f) || 0)) + 1);
 
@@ -654,7 +682,7 @@ export default function FloorPlanEditor({
       <div className="mb-3 flex flex-wrap items-center gap-x-4 gap-y-2">
         <div className="min-w-0">
           <h2 className="display-sm text-lg">Editing the floor plan</h2>
-          <p className="num text-sm text-slate">{summary || 'No changes yet.'}</p>
+          <p role="status" className="num text-sm text-slate">{status}</p>
         </div>
         <div className="ml-auto flex flex-wrap items-center gap-2">
           {canImport && (
@@ -674,9 +702,17 @@ export default function FloorPlanEditor({
           <Button aria-label="Redo" onClick={redo} disabled={!hist.future.length}>
             <Redo2 size={16} aria-hidden /> Redo
           </Button>
-          <Button onClick={() => (dirty ? setLeaving(true) : onClose())}>{dirty ? 'Discard' : 'Close'}</Button>
-          <Button variant="primary" onClick={() => save.mutate()} disabled={!dirty || issues.length > 0 || save.isPending}>
-            Save floor plan
+          <Button onClick={() => (pending ? setLeaving(true) : onClose())}>{pending ? 'Discard' : 'Close'}</Button>
+          <Button
+            variant="primary"
+            onClick={() => {
+              if (!pending) return onClose();
+              closeAfter.current = true;
+              save.mutate({ body, sent: draft });
+            }}
+            disabled={issues.length > 0 || save.isPending}
+          >
+            {pending ? 'Save and close' : 'Done'}
           </Button>
         </div>
       </div>
@@ -874,7 +910,7 @@ export default function FloorPlanEditor({
       <PlanPrint open={printing} onClose={() => setPrinting(false)} draft={draft} floor={floor} title={locationName ?? 'Floor plan'} />
 
       <Modal open={leaving} onClose={() => setLeaving(false)} title="Discard your changes?">
-        <p className="text-sm">{summary ? `You have ${summary}. ` : ''}Nothing has been saved yet, so leaving now loses them.</p>
+        <p className="text-sm">{summary ? `Since the last autosave you have ${summary}. ` : ''}Leaving now loses those. Everything before that is already saved.</p>
         <div className="mt-4 flex justify-end gap-2">
           <Button onClick={() => setLeaving(false)}>Keep editing</Button>
           <Button variant="danger" onClick={onClose}>

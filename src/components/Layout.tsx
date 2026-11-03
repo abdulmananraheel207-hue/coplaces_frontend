@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { NavLink, Outlet, useLocation as useRoute } from 'react-router';
-import { Building2, CalendarDays, CalendarRange, Coins, CreditCard, DoorOpen, FileSignature, Fingerprint, Megaphone, Wrench, LayoutDashboard, LayoutGrid, LogOut, Menu, Package, Receipt, Settings, Tags, UserRound, Users, X } from 'lucide-react';
+import { Building2, CalendarDays, CalendarRange, Coins, CreditCard, DoorOpen, FileSignature, Fingerprint, Megaphone, Wrench, LayoutDashboard, LayoutGrid, LogOut, Menu, Package, Radio, Receipt, Settings, Tags, UserRound, Users, X } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../api';
 import { useAuth, useFeature } from '../auth';
@@ -118,6 +118,7 @@ export function StaffShell() {
   useEffect(() => setOpen(false), [route.pathname]);
   if (!user || !location) return null;
   const invoicing = useFeature('invoicing');
+  const floor3d = useFeature('floor_3d');
   const expenses = useFeature('expenses');
   const reports = useFeature('reports');
   // How many problems are waiting, shown on the Maintenance link for whoever handles them.
@@ -192,6 +193,11 @@ export function StaffShell() {
                   {deskCount}
                 </span>
               )}
+            </SideLink>
+          )}
+          {can(user, 'front_desk') && floor3d && (
+            <SideLink to="/live" icon={<Radio size={17} />}>
+              Live
             </SideLink>
           )}
           {can(user, 'bookings') && (

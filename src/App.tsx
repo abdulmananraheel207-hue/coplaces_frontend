@@ -26,6 +26,7 @@ import Dashboard from './pages/staff/Dashboard';
 import Expenses from './pages/staff/Expenses';
 import FrontDesk from './pages/staff/FrontDesk';
 import Invoices from './pages/staff/Invoices';
+import Live from './pages/staff/Live';
 import MemberDetail from './pages/staff/MemberDetail';
 import Members from './pages/staff/Members';
 import { FinanceIndex, FinanceLayout } from './pages/staff/Finance';
@@ -54,6 +55,7 @@ function StaffRoutes() {
       <Route element={<StaffShell />}>
         <Route index element={<Dashboard />} />
         <Route path="front-desk" element={<RequirePermission permission="front_desk"><FrontDesk /></RequirePermission>} />
+        <Route path="live" element={<RequirePermission permission="front_desk"><Live /></RequirePermission>} />
         <Route path="bookings" element={<RequirePermission permission="bookings"><Bookings /></RequirePermission>} />
         <Route path="calendar" element={<RequirePermission permission="bookings"><Calendar /></RequirePermission>} />
         <Route path="members" element={<RequirePermission permission="members"><Members /></RequirePermission>} />

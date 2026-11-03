@@ -27,7 +27,7 @@ function space(kind: ResourceKind, style: string, name: string, floor: string, c
 }
 
 /** A made-up building, so a visitor sees what the app shows before they have an account. */
-function sampleBuilding(): SpaceItem[] {
+export function sampleBuilding(): SpaceItem[] {
   n = 0;
   const out: SpaceItem[] = [
     space('corporate_room', 'boardroom', 'Boardroom', '1', 16, 'ok', 'Free until 14:00'),

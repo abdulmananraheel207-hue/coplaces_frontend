@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { PALETTE, nextName, type PaletteEntry } from '../../lib/catalogue';
 import type { FloorObject, Resource } from '../../types';
-import { addFloor, alignThings, anyCollision, applyTemplate, boxOf, buildSave, duplicateThings, findSpot, fits, floorsOf, isResizable, limitsOf, moveThing, moveThings, placeGrid, placeThing, problems, removeThing, removeThings, resizeThing, rotateThing, startDraft, toTemplate, type Draft, type Thing } from './editorModel';
+import { addFloor, afterSave, alignThings, anyCollision, applyTemplate, boxOf, buildSave, duplicateThings, findSpot, fits, floorsOf, isResizable, limitsOf, moveThing, moveThings, placeGrid, placeThing, problems, removeThing, removeThings, resizeThing, rotateThing, startDraft, toTemplate, type Draft, type Thing } from './editorModel';
 import { compareFloors, floorKey, floorLabel, floorMark, footprint, layoutFloors, overlaps, type Box } from './layout';
 import type { SpaceItem } from '../../lib/spaceState';
 
@@ -389,5 +389,52 @@ describe('the palette', () => {
       expect(size.w).toBeGreaterThan(0.05);
       expect(size.d).toBeGreaterThan(0.05);
     }
+  });
+});
+
+describe('autosaving', () => {
+  const stored = { id: 'r1', locationId: 'L', kind: 'hot_desk', name: 'Desk 1', floor: '1', capacity: 1, hourlyRateCents: 0, creditsAllowed: false, amenities: '', status: 'available', notes: '', style: 'standard', planX: 1, planZ: 1, planW: null, planD: null, planRot: 0, description: '', openTime: null, closeTime: null, closedWeekdays: null } as const;
+  const thing = (over: object) => ({ type: 'resource', key: 'new:1', id: null, kind: 'hot_desk', style: 'standard', name: 'Desk 2', floor: '1', capacity: 1, amenities: '', x: 3, z: 1, rot: 0, w: null, d: null, ...over }) as never;
+
+  it('gives new things the ids the server made, so the next save does not make them twice', () => {
+    const draft = { things: [{ ...(thing({ key: 'r1', id: 'r1', name: 'Desk 1', x: 1 }) as object) }, thing({})], floors: ['1'] } as never as Draft;
+    const first = buildSave('L', draft, [stored as never], []);
+    expect(first.changes.added).toBe(1);
+    const saved = afterSave('L', draft, { resources: [stored as never], objects: [] }, { resources: ['r2'], objects: [] });
+    expect(saved.ids.get('new:1')).toBe('r2');
+    const next = { ...draft, things: draft.things.map((t) => (saved.ids.has(t.key) ? { ...t, id: saved.ids.get(t.key)! } : t)) } as Draft;
+    const again = buildSave('L', next, saved.resources, saved.objects);
+    expect(again.body.create).toHaveLength(0);
+    expect(again.changes).toEqual({ added: 0, changed: 0, removed: 0 });
+  });
+
+  it('keeps a removed space on record as retired', () => {
+    const saved = afterSave('L', { things: [], floors: ['1'] }, { resources: [stored as never], objects: [] }, { resources: [], objects: [] });
+    expect(saved.resources.map((r) => r.status)).toEqual(['retired']);
+    const again = buildSave('L', { things: [], floors: ['1'] }, saved.resources, saved.objects);
+    expect(again.body.retire).toHaveLength(0);
+  });
+});
+
+describe('autosaving, undo and redo', () => {
+  const desk = (over: object) => ({ type: 'resource', key: 'new:1', id: null, kind: 'hot_desk', style: 'standard', name: 'Desk 9', floor: '1', capacity: 1, amenities: '', x: 3, z: 1, rot: 0, w: null, d: null, ...over }) as never as Draft['things'][number];
+
+  it('restores a space when undo retired it and redo brings it back', () => {
+    // Saved once, so it has an id; autosave then retired it after an undo.
+    const added: Draft = { things: [desk({})], floors: ['1'] };
+    const first = afterSave('L', added, { resources: [], objects: [] }, { resources: ['r9'], objects: [] });
+    const gone: Draft = { things: [], floors: ['1'] };
+    const afterUndo = afterSave('L', gone, { resources: first.resources, objects: first.objects }, { resources: [], objects: [] });
+    expect(afterUndo.resources.map((r) => r.status)).toEqual(['retired']);
+
+    // Redo: the draft has the thing with its old id, which is retired now.
+    const redone: Draft = { things: [desk({ id: 'r9' })], floors: ['1'] };
+    expect(problems(redone, afterUndo.resources)).toEqual([]);
+    const save = buildSave('L', redone, afterUndo.resources, afterUndo.objects);
+    expect(save.body.create).toHaveLength(0);
+    expect(save.body.update).toMatchObject([{ id: 'r9', restore: true }]);
+    const done = afterSave('L', redone, { resources: afterUndo.resources, objects: afterUndo.objects }, { resources: [], objects: [] });
+    expect(done.resources.map((r) => r.status)).toEqual(['available']);
+    expect(buildSave('L', redone, done.resources, done.objects).changes).toEqual({ added: 0, changed: 0, removed: 0 });
   });
 });
