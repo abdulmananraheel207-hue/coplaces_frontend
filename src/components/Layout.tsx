@@ -1,6 +1,6 @@
 import { createContext, Suspense, useContext, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { NavLink, Outlet, useLocation as useRoute } from 'react-router';
-import { Building2, CalendarDays, CalendarRange, Coins, CreditCard, DoorOpen, FileSignature, Fingerprint, Megaphone, Wrench, LayoutDashboard, LayoutGrid, LogOut, Menu, Package, Receipt, Settings, Tags, UserRound, Users, X } from 'lucide-react';
+import { Building2, CalendarDays, CalendarRange, Coins, CreditCard, DoorOpen, FileSignature, Fingerprint, Megaphone, Wrench, LayoutDashboard, LayoutGrid, LogOut, Menu, Package, Radio, Receipt, Settings, Tags, UserRound, Users, X } from 'lucide-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { prefetchPage, WARM_ORDER } from '../lib/prefetch';
 import { api } from '../api';
@@ -125,6 +125,7 @@ function UserFooter({ name, role, onLogout }: { name: string; role: string; onLo
 
 export function StaffShell() {
   const { user, org, locations, location, setLocationId, logout } = useAuth();
+  const floor3d = useFeature('floor_3d');
   const [open, setOpen] = useState(false);
   const route = useRoute();
   useEffect(() => setOpen(false), [route.pathname]);
@@ -227,6 +228,11 @@ export function StaffShell() {
                   {deskCount}
                 </span>
               )}
+            </SideLink>
+          )}
+          {can(user, 'front_desk') && floor3d && (
+            <SideLink to="/live" icon={<Radio size={17} />}>
+              Live
             </SideLink>
           )}
           {can(user, 'bookings') && (

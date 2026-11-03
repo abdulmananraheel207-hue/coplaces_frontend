@@ -384,7 +384,7 @@ export function DeskShape({ p }: { p: Placed }) {
       ) : (
         <Chair position={[corner ? -0.15 : 0, 0, 0.42]} />
       )}
-      {taken && !dedicated && <Person tone={item.tone} standing={standing} position={[corner ? -0.15 : 0, standing ? 0 : 0.5, standing ? 0.4 : 0.38]} />}
+      {taken && !dedicated && !item.live && <Person tone={item.tone} standing={standing} position={[corner ? -0.15 : 0, standing ? 0 : 0.5, standing ? 0.4 : 0.38]} />}
     </group>
   );
 }

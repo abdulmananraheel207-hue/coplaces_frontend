@@ -282,6 +282,7 @@ export interface AttendanceRow {
   memberId: string;
   memberName: string;
   company: string;
+  resourceId: string | null;
   resourceName: string | null;
   checkInAt: string;
   checkOutAt: string | null;

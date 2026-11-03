@@ -29,6 +29,7 @@ const {
   Dashboard,
   Expenses,
   FrontDesk,
+  Live,
   Invoices,
   MemberDetail,
   Members,
@@ -59,6 +60,7 @@ function StaffRoutes() {
       <Route element={<StaffShell />}>
         <Route index element={<Dashboard />} />
         <Route path="front-desk" element={<RequirePermission permission="front_desk"><FrontDesk /></RequirePermission>} />
+        <Route path="live" element={<RequirePermission permission="front_desk"><Live /></RequirePermission>} />
         <Route path="bookings" element={<RequirePermission permission="bookings"><Bookings /></RequirePermission>} />
         <Route path="calendar" element={<RequirePermission permission="bookings"><Calendar /></RequirePermission>} />
         <Route path="members" element={<RequirePermission permission="members"><Members /></RequirePermission>} />

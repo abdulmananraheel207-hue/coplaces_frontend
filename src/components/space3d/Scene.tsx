@@ -279,6 +279,7 @@ function FloorStage({
   underlay,
   registry,
   heat,
+  crowd,
 }: {
   slot: StackSlot;
   rim: boolean;
@@ -290,6 +291,7 @@ function FloorStage({
   underlay?: Underlay;
   registry: Registry;
   heat?: Record<string, number>;
+  crowd?: (f: FloorLayout) => ReactNode;
 }) {
   const group = useRef<THREE.Group>(null);
   const invalidate = useThree((s) => s.invalidate);
@@ -346,6 +348,7 @@ function FloorStage({
           {floor.objects.map((o) => (
             <ObjectUnit key={o.id} o={o} siblings={floor.objects} selected={isSelected(o.id)} mode={editing ? 'edit' : 'none'} registry={registry} />
           ))}
+          {crowd?.(floor)}
         </>
       )}
     </group>
@@ -1051,6 +1054,7 @@ export default function Scene({
   fit,
   underlay,
   heat,
+  crowd,
   spin,
   dpr,
 }: {
@@ -1069,6 +1073,8 @@ export default function Scene({
   underlay?: Underlay;
   /** How busy each space has been, 0 to 1 by space id. Draws a colour over each. */
   heat?: Record<string, number>;
+  /** People drawn walking about on a floor, for the live view. Positions are the floor's own. */
+  crowd?: (f: FloorLayout) => ReactNode;
   /** Turns the model slowly by itself, for display pages. */
   spin?: boolean;
   /** Pixel density range; display pages ask for more so edges stay sharp. */
@@ -1126,6 +1132,7 @@ export default function Scene({
           underlay={underlay}
           registry={registry}
           heat={heat}
+          crowd={crowd}
         />
       ))}
 

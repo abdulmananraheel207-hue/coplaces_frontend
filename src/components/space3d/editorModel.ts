@@ -450,7 +450,7 @@ export interface SaveBody {
   locationId: string;
   /** Floors with nothing on them yet, so they are kept. */
   floors?: string[];
-  update: { id: string; plan: { x: number; z: number; rot: number; w: number | null; d: number | null }; props?: Record<string, string | number> }[];
+  update: { id: string; plan: { x: number; z: number; rot: number; w: number | null; d: number | null }; props?: Record<string, string | number>; restore?: boolean }[];
   create: {
     kind: ResourceKind;
     style: string;
@@ -472,18 +472,19 @@ export function buildSave(locationId: string, draft: Draft, resources: Resource[
   const body: SaveBody = { locationId, update: [], create: [], retire: [], objects: { upsert: [], remove: [] } };
   const changes: Changes = { added: 0, changed: 0, removed: 0 };
   const live = new Map(resources.filter((r) => r.status !== 'retired').map((r) => [r.id, r]));
+  const every = new Map(resources.map((r) => [r.id, r]));
   const storedObjects = new Map(objects.map((o) => [o.id, o]));
   const here = new Set(draft.things.map((t) => t.id).filter((id): id is string => !!id));
 
   for (const t of draft.things) {
     if (t.type === 'resource') {
       const plan = { x: t.x, z: t.z, rot: t.rot, w: t.w, d: t.d };
-      if (!t.id) {
+      const r = t.id ? every.get(t.id) : undefined;
+      if (!r) {
         body.create.push({ kind: t.kind, style: t.style, name: t.name, floor: t.floor, capacity: t.capacity, amenities: t.amenities, plan });
         changes.added++;
         continue;
       }
-      const r = live.get(t.id)!;
       const props: Record<string, string | number> = {};
       if (t.name !== r.name) props.name = t.name;
       if (t.style !== styleKey(r.kind, r.style)) props.style = t.style;
@@ -491,20 +492,23 @@ export function buildSave(locationId: string, draft: Draft, resources: Resource[
       if (t.amenities !== r.amenities) props.amenities = t.amenities;
       const moved = !same(r.planX, t.x) || !same(r.planZ, t.z) || r.planRot !== t.rot || !same(r.planW, t.w) || !same(r.planD, t.d);
       // Spaces that were never placed get a position saved even when nothing else changed.
-      if (moved || Object.keys(props).length) {
-        body.update.push({ id: t.id, plan, ...(Object.keys(props).length ? { props } : {}) });
-        if (r.planX !== null && (moved || Object.keys(props).length)) changes.changed++;
+      // A space that autosave retired and undo then brought back is restored, not made again.
+      const restoring = r.status === 'retired';
+      if (moved || Object.keys(props).length || restoring) {
+        body.update.push({ id: r.id, plan, ...(Object.keys(props).length ? { props } : {}), ...(restoring ? { restore: true } : {}) });
+        if (restoring) changes.added++;
+        else if (r.planX !== null) changes.changed++;
       }
     } else {
       const o = { type: t.object, floor: t.floor, label: t.label, variant: t.variant ?? '', tint: t.tint ?? '', x: t.x, z: t.z, rot: t.rot, w: t.w, d: t.d };
-      if (!t.id) {
+      const s = t.id ? storedObjects.get(t.id) : undefined;
+      if (!s) {
         body.objects.upsert.push(o);
         changes.added++;
         continue;
       }
-      const s = storedObjects.get(t.id)!;
       if (!same(s.x, t.x) || !same(s.z, t.z) || s.rot !== t.rot || !same(s.w, t.w) || !same(s.d, t.d) || s.label !== t.label || (s.variant ?? '') !== o.variant || (s.tint ?? '') !== o.tint) {
-        body.objects.upsert.push({ id: t.id, ...o });
+        body.objects.upsert.push({ id: s.id, ...o });
         changes.changed++;
       }
     }
@@ -535,11 +539,66 @@ export function problems(draft: Draft, resources: Resource[]): string[] {
     if (!name) out.push('Every room and desk needs a name.');
     names.set(name.toLowerCase(), (names.get(name.toLowerCase()) ?? 0) + 1);
   }
-  const retired = new Set(resources.filter((r) => r.status === 'retired').map((r) => r.name.toLowerCase()));
+  // A space brought back by undo may have its own old name.
+  const mine = new Set(draft.things.map((t) => t.id));
+  const retired = new Set(resources.filter((r) => r.status === 'retired' && !mine.has(r.id)).map((r) => r.name.toLowerCase()));
   for (const [lower, n] of names) {
     const shown = draft.things.filter(isResource).find((t) => t.name.trim().toLowerCase() === lower)?.name.trim() ?? lower;
     if (lower && n > 1) out.push(`"${shown}" is used more than once.`);
     else if (lower && retired.has(lower)) out.push(`"${shown}" is the name of a space that was removed earlier. Choose another name.`);
   }
   return [...new Set(out)];
+}
+
+/**
+ * What is stored once `sent` has been saved: the ids the server gave the new things (by key), and the stored spaces and objects as
+ * they now are. The editor keeps editing against this, so the next autosave only sends what changed since.
+ */
+export function afterSave(locationId: string, sent: Draft, base: { resources: Resource[]; objects: FloorObject[] }, made: { resources: string[]; objects: string[] }) {
+  const ids = new Map<string, string>();
+  let r = 0;
+  let o = 0;
+  const known = new Map(base.resources.map((x) => [x.id, x]));
+  const knownObjects = new Set(base.objects.map((x) => x.id));
+  for (const t of sent.things) {
+    // Same test as `buildSave`: no id, or an id nothing stored has, is made new.
+    if (t.id && (t.type === 'resource' ? known.has(t.id) : knownObjects.has(t.id))) continue;
+    const id = t.type === 'resource' ? made.resources[r++] : made.objects[o++];
+    if (id) ids.set(t.key, id);
+  }
+  const idOf = (t: Thing) => ids.get(t.key) ?? t.id ?? '';
+  // A retired space the draft has again is restored by the save.
+  const statusOf = (id: string) => (known.get(id) && known.get(id)!.status !== 'retired' ? known.get(id)!.status : 'available');
+  const here = new Set(sent.things.map(idOf));
+
+  const resources: Resource[] = sent.things.filter(isResource).map((t) => ({
+    hourlyRateCents: 0,
+    creditsAllowed: false,
+    notes: '',
+    description: '',
+    openTime: null,
+    closeTime: null,
+    closedWeekdays: null,
+    ...known.get(idOf(t)),
+    id: idOf(t),
+    locationId,
+    kind: t.kind,
+    name: t.name,
+    floor: t.floor,
+    capacity: t.capacity,
+    amenities: t.amenities,
+    style: t.style,
+    status: statusOf(idOf(t)),
+    planX: t.x,
+    planZ: t.z,
+    planRot: t.rot,
+    planW: t.w,
+    planD: t.d,
+  }));
+  // Spaces taken off the plan are retired: they stay on record, and their names stay taken.
+  for (const x of base.resources) if (!here.has(x.id) && x.status !== 'retired') resources.push({ ...x, status: 'retired', planX: null, planZ: null, planW: null, planD: null });
+  for (const x of base.resources) if (x.status === 'retired' && !here.has(x.id)) resources.push(x);
+
+  const objects: FloorObject[] = sent.things.filter(isObject).map((t) => ({ locationId, ...base.objects.find((x) => x.id === idOf(t)), id: idOf(t), floor: t.floor, type: t.object, label: t.label, variant: t.variant ?? '', tint: t.tint ?? '', x: t.x, z: t.z, rot: t.rot, w: t.w, d: t.d }));
+  return { ids, resources, objects };
 }
