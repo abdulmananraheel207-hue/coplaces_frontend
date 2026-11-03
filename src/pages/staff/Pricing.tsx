@@ -8,10 +8,11 @@ import { fromCents, KIND_LABEL, toCents } from '../../lib/format';
 import { useRefresh, useResources } from '../../lib/queries';
 import type { ResourceKind } from '../../types';
 
-/** One row: whether the space can be booked by the hour, and the price typed for it. */
+/** One row: whether the space can be booked by the hour, the price typed for it, and whether members' credit hours can be used on it. */
 interface Row {
   on: boolean;
   price: string;
+  credits: boolean;
 }
 
 /**
@@ -31,7 +32,7 @@ export default function Pricing() {
   const [bulk, setBulk] = useState('');
 
   // What is saved, as the starting point; saving or reloading starts over from it.
-  const saved = useMemo(() => Object.fromEntries(spaces.map((r) => [r.id, { on: r.hourlyRateCents > 0, price: r.hourlyRateCents > 0 ? fromCents(r.hourlyRateCents) : '' } satisfies Row])), [spaces]);
+  const saved = useMemo(() => Object.fromEntries(spaces.map((r) => [r.id, { on: r.hourlyRateCents > 0, price: r.hourlyRateCents > 0 ? fromCents(r.hourlyRateCents) : '', credits: r.creditsAllowed } satisfies Row])), [spaces]);
   useEffect(() => setRows(saved), [saved]);
 
   const shown = spaces.filter((r) => (!kind || r.kind === kind) && (!q.trim() || r.name.toLowerCase().includes(q.trim().toLowerCase())));
@@ -45,11 +46,12 @@ export default function Pricing() {
     return c !== null && c > 0 ? c : null;
   };
   const invalid = spaces.filter((r) => centsOf(r.id) === null);
-  const changed = spaces.filter((r) => centsOf(r.id) !== null && centsOf(r.id) !== r.hourlyRateCents);
+  const creditsOf = (id: string) => !!rows[id]?.credits;
+  const changed = spaces.filter((r) => centsOf(r.id) !== null && (centsOf(r.id) !== r.hourlyRateCents || creditsOf(r.id) !== r.creditsAllowed));
   const pricedCount = spaces.filter((r) => (rows[r.id]?.on ?? false)).length;
 
   const save = useMutation({
-    mutationFn: () => api.put<{ changed: number }>('/resources/pricing', { locationId: loc.id, prices: changed.map((r) => ({ resourceId: r.id, hourlyRateCents: centsOf(r.id)! })) }),
+    mutationFn: () => api.put<{ changed: number }>('/resources/pricing', { locationId: loc.id, prices: changed.map((r) => ({ resourceId: r.id, hourlyRateCents: centsOf(r.id)!, creditsAllowed: creditsOf(r.id) })) }),
     onSuccess: (r) => {
       toast.ok(`${r.changed} ${r.changed === 1 ? 'space' : 'spaces'} updated`);
       void refresh('resources', 'schedule', 'dashboard', 'bookings');
@@ -57,16 +59,16 @@ export default function Pricing() {
   });
 
   const allShownOn = shown.length > 0 && shown.every((r) => rows[r.id]?.on);
-  const tickShown = (on: boolean) => setRows((x) => ({ ...x, ...Object.fromEntries(shown.map((r) => [r.id, { on, price: x[r.id]?.price ?? '' }])) }));
+  const tickShown = (on: boolean) => setRows((x) => ({ ...x, ...Object.fromEntries(shown.map((r) => [r.id, { on, price: x[r.id]?.price ?? '', credits: x[r.id]?.credits ?? false }])) }));
   const applyBulk = () => {
     if (toCents(bulk) === null) return;
-    setRows((x) => ({ ...x, ...Object.fromEntries(shown.filter((r) => x[r.id]?.on).map((r) => [r.id, { on: true, price: bulk.trim() }])) }));
+    setRows((x) => ({ ...x, ...Object.fromEntries(shown.filter((r) => x[r.id]?.on).map((r) => [r.id, { on: true, price: bulk.trim(), credits: x[r.id]?.credits ?? false }])) }));
   };
   const kinds = [...new Set(spaces.map((r) => r.kind))];
 
   return (
     <>
-      <PageHeader title="Pricing" sub="Tick the spaces that can be booked by the hour and give each an hourly price. Everything else is used through plans and contracts." />
+      <PageHeader title="Pricing and credit hours" sub="Tick the spaces that can be booked by the hour and give each an hourly price. Everything else is used through plans and contracts. Then tick the spaces where members can use their meeting room credit hours (2 credit hours are 1 hour). You choose which members get them when you add or edit a member." />
       {resources.isLoading ? (
         <Loading />
       ) : resources.error ? (
@@ -106,12 +108,13 @@ export default function Pricing() {
                   <th>Space</th>
                   <th>Kind</th>
                   <th className="r">Hourly price ({loc.currency})</th>
+                  <th>Credit hours</th>
                   <th>Used for</th>
                 </tr>
               </thead>
               <tbody>
                 {shown.map((r) => {
-                  const row = rows[r.id] ?? { on: false, price: '' };
+                  const row = rows[r.id] ?? { on: false, price: '', credits: false };
                   const bad = centsOf(r.id) === null;
                   return (
                     <tr key={r.id}>
@@ -135,13 +138,19 @@ export default function Pricing() {
                           onChange={(e) => set(r.id, { price: e.target.value })}
                         />
                       </td>
+                      <td>
+                        <label className="flex items-center gap-2 text-sm">
+                          <input type="checkbox" className="size-4 accent-ink" aria-label={`Members can use credit hours on ${r.name}`} checked={row.credits} onChange={(e) => set(r.id, { credits: e.target.checked })} />
+                          {row.credits ? 'Allowed' : ''}
+                        </label>
+                      </td>
                       <td>{row.on ? <Chip tone="ok">Booked by the hour</Chip> : <Chip tone="idle">Plans and contracts</Chip>}</td>
                     </tr>
                   );
                 })}
                 {shown.length === 0 && (
                   <tr>
-                    <td colSpan={5} className="text-center text-slate">
+                    <td colSpan={6} className="text-center text-slate">
                       No spaces match.
                     </td>
                   </tr>
@@ -161,7 +170,7 @@ export default function Pricing() {
                 Undo changes
               </Button>
               <Button variant="primary" disabled={save.isPending || invalid.length > 0 || changed.length === 0} onClick={() => save.mutate()}>
-                {save.isPending ? 'Saving…' : changed.length ? `Save ${changed.length} ${changed.length === 1 ? 'change' : 'changes'}` : 'Save prices'}
+                {save.isPending ? 'Saving…' : changed.length ? `Save ${changed.length} ${changed.length === 1 ? 'change' : 'changes'}` : 'Save changes'}
               </Button>
             </div>
           </div>

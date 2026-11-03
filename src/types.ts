@@ -116,8 +116,6 @@ export interface MemberRow {
   depositCents: number;
   depositStatus: DepositStatus;
   depositReturnedCents: number;
-  /** Free meeting room time each month, in credit hours. Two credit hours are one hour. */
-  meetingCredits: number;
   status: MemberStatus;
   startDate: string;
   endDate: string | null;
@@ -144,6 +142,8 @@ export interface MemberDetail extends Omit<MemberRow, 'planName' | 'checkedIn'> 
   /** Every movement of their advance and security deposit, oldest first. */
   moneyEntries: { id: string; kind: 'advance' | 'received' | 'refunded' | 'kept'; amountCents: number; method: PaymentMethod | null; reference: string; occurredAt: string }[];
   desks: { id: string; name: string; kind: ResourceKind }[];
+  /** The spaces they get free credit hours on, with how many a month on each. Two credit hours are one hour. */
+  creditResources: { id: string; name: string; credits: number }[];
   /** What they get free each day, with how many they have had today. */
   amenities: AmenityAllowance[];
   amenityOwedCents: number;
@@ -175,8 +175,10 @@ export interface Resource {
   name: string;
   floor: string;
   capacity: number;
-  /** The owner's hourly price, from the Pricing tab. Zero means it cannot be booked by the hour: it is used through plans and contracts. */
+  /** The owner's hourly price, from the Pricing and credit hours tab. Zero means it cannot be booked by the hour: it is used through plans and contracts. */
   hourlyRateCents: number;
+  /** Members' meeting room credit hours can be used on this space (set on the Pricing and credit hours tab). */
+  creditsAllowed: boolean;
   amenities: string;
   status: ResourceStatus;
   notes: string;
@@ -484,6 +486,8 @@ export interface MemberSummary {
   today: string;
   plan: Plan | null;
   meetingMinutes: { included: number; used: number };
+  /** The spaces their credit hours work on, with how many credit hours a month on each (two make an hour) and the minutes used this month. */
+  creditResources: { id: string; name: string; credits: number; usedMinutes: number }[];
   amenities: AmenityAllowance[];
   amenityDueCents: number;
   amenityRequests: AmenityRequest[];

@@ -14,6 +14,7 @@ const res = (o: Partial<Resource> = {}): Resource => ({
   floor: '1',
   capacity: 4,
   hourlyRateCents: 0,
+  creditsAllowed: false,
   amenities: '',
   status: 'available',
   notes: '',

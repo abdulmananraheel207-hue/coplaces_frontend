@@ -6,40 +6,43 @@ import { MemberSelect } from './MemberSelect';
 import { useToast } from './toast';
 import { Button, ErrorNote, Field, Input, Loading, Section, Select } from './ui';
 import { fromCents, money, toCents } from '../lib/format';
-import { useAmenities, useAmenityRequests, useRefresh } from '../lib/queries';
+import { useAmenities, useAmenityRequests, useRefresh, useResources } from '../lib/queries';
 import { fmtTime } from '../lib/time';
 import type { Amenity, AmenityRequest, MemberDetail } from '../types';
 
-/** What the owner gives a member: the amenities they get free each day (ticked, with how many) and their meeting room credit hours. */
+/** What the owner gives a member: the amenities they get free each day (ticked, with how many) and the credit hours on chosen rooms. */
 export interface FreeState {
   /** Amenity id to the free amount per day, typed. An amenity that is not here is not ticked. */
   free: Record<string, string>;
-  credits: string;
+  /** Room id to the credit hours a month, typed. A room that is not here is not ticked. */
+  rooms: Record<string, string>;
 }
-export const emptyFree: FreeState = { free: {}, credits: '' };
+export const emptyFree: FreeState = { free: {}, rooms: {} };
 
 export const freeFrom = (m: MemberDetail): FreeState => ({
   free: Object.fromEntries(m.amenities.filter((a) => a.freePerDay > 0).map((a) => [a.amenityId, String(a.freePerDay)])),
-  credits: m.meetingCredits ? String(m.meetingCredits) : '',
+  rooms: Object.fromEntries(m.creditResources.map((r) => [r.id, String(r.credits)])),
 });
 
 const whole = (s: string) => (/^\d+$/.test(s.trim()) && Number(s) > 0 ? Number(s) : null);
 
-/** Every ticked amenity needs a free amount of at least 1, and the credit hours must be a whole number. */
+/** Every ticked amenity needs a free amount of at least 1, and every ticked room needs credit hours of at least 1. */
 export const freeOk = (f: FreeState, offered: Amenity[] = []) =>
-  offered.filter((a) => a.id in f.free).every((a) => whole(f.free[a.id]!) !== null) && (f.credits.trim() === '' || /^\d+$/.test(f.credits.trim()));
+  offered.filter((a) => a.id in f.free).every((a) => whole(f.free[a.id]!) !== null) && Object.values(f.rooms).every((c) => whole(c) !== null);
 
 /** The part of the request body that carries these. Only amenities the location still offers are sent. */
 export const freeBody = (f: FreeState, offered: Amenity[] = []) => ({
   amenities: offered.filter((a) => a.id in f.free).map((a) => ({ amenityId: a.id, freePerDay: whole(f.free[a.id]!) ?? 1 })),
-  meetingCredits: f.credits.trim() === '' ? 0 : Number(f.credits),
+  creditRooms: Object.entries(f.rooms).map(([resourceId, c]) => ({ resourceId, credits: whole(c) ?? 1 })),
 });
 
-/** Checkboxes for the amenities the space offers: ticking one asks how many the member gets free per day. Then the meeting room credit hours. */
+/** Checkboxes for the amenities the space offers: ticking one asks how many the member gets free per day. Then the rooms where they get free credit hours. */
 export function FreeFields({ value, onChange }: { value: FreeState; onChange: (f: FreeState) => void }) {
   const loc = useLocation();
   const amenities = useAmenities(loc.id);
-  const credits = Number(value.credits) || 0;
+  const resources = useResources(loc.id);
+  // Only the spaces the owner allowed credit hours on, on the Pricing and credit hours tab.
+  const rooms = (resources.data ?? []).filter((r) => r.creditsAllowed && r.status !== 'retired').sort((x, y) => x.name.localeCompare(y.name, undefined, { numeric: true }));
   return (
     <fieldset className="space-y-3 rounded-lg border border-line p-3">
       <legend className="px-1 text-[13px] font-semibold">Free for this member</legend>
@@ -84,12 +87,51 @@ export function FreeFields({ value, onChange }: { value: FreeState; onChange: (f
           })}
         </div>
       )}
-      <Field
-        label="Meeting room credit hours per month"
-        hint={credits > 0 ? `${credits} credit hours are ${credits / 2} ${credits === 2 ? 'hour' : 'hours'} of free meeting room each month. Beyond that they pay the room's price.` : 'Two credit hours are one hour of free meeting room. Leave empty for none.'}
-      >
-        <Input inputMode="numeric" className="w-32" value={value.credits} onChange={(e) => onChange({ ...value, credits: e.target.value })} />
-      </Field>
+      <div className="space-y-2">
+        <p className="text-[13px] font-semibold">Rooms the credit hours work on</p>
+        {resources.isLoading ? (
+          <Loading />
+        ) : rooms.length === 0 ? (
+          <p className="text-sm text-slate">No rooms yet. Allow credit hours on the rooms you choose, on the Pricing and credit hours tab, and they will show here.</p>
+        ) : (
+          <>
+            <p className="text-xs text-slate">Tick a room to give them free credit hours on it each month, and say how many. Two credit hours are one hour. On any other room they pay the normal price.</p>
+            {rooms.map((r) => {
+              const on = r.id in value.rooms;
+              const n = Number(value.rooms[r.id]) || 0;
+              return (
+                <div key={r.id} className="flex flex-wrap items-center gap-3">
+                  <label className="flex min-w-40 items-center gap-2 text-sm">
+                    <input
+                      type="checkbox"
+                      className="size-4 accent-ink"
+                      checked={on}
+                      onChange={() => {
+                        const { [r.id]: _gone, ...rest } = value.rooms;
+                        void _gone;
+                        onChange({ ...value, rooms: on ? rest : { ...rest, [r.id]: '2' } });
+                      }}
+                    />
+                    {r.name}
+                  </label>
+                  {on && (
+                    <label className="flex items-center gap-2 text-sm">
+                      <Input
+                        inputMode="numeric"
+                        aria-label={`Credit hours a month on ${r.name}`}
+                        className="w-20"
+                        value={value.rooms[r.id]}
+                        onChange={(e) => onChange({ ...value, rooms: { ...value.rooms, [r.id]: e.target.value } })}
+                      />
+                      credit hours a month{n > 0 ? `, ${n / 2} ${n === 2 ? 'hour' : 'hours'} free` : ''}
+                    </label>
+                  )}
+                </div>
+              );
+            })}
+          </>
+        )}
+      </div>
     </fieldset>
   );
 }
@@ -267,14 +309,21 @@ export function CollectButton({ memberId, label = 'Collected' }: { memberId: str
 /** On a member's page: what they get free, what they have had today and anything they owe for amenities. */
 export function AmenitySection({ m, canCollect }: { m: MemberDetail; canCollect: boolean }) {
   const loc = useLocation();
-  if (!m.amenities.length && !m.amenityOwedCents && !m.meetingCredits) return null;
+  if (!m.amenities.length && !m.amenityOwedCents && !m.creditResources.length) return null;
   return (
     <Section title="Amenities and credit hours">
       <div className="space-y-3 text-sm">
-        {m.meetingCredits > 0 && (
-          <p>
-            <strong>{m.meetingCredits} meeting room credit hours</strong> a month, which is {m.meetingCredits / 2} {m.meetingCredits === 2 ? 'hour' : 'hours'} free.
-          </p>
+        {m.creditResources.length > 0 && (
+          <ul className="surface divide-y divide-line px-4">
+            {m.creditResources.map((r) => (
+              <li key={r.id} className="flex items-baseline justify-between gap-3 py-2">
+                <span className="font-semibold">{r.name}</span>
+                <span className="text-slate">
+                  {r.credits} credit hours a month, {r.credits / 2} {r.credits === 2 ? 'hour' : 'hours'} free
+                </span>
+              </li>
+            ))}
+          </ul>
         )}
         {m.amenities.length > 0 && (
           <ul className="surface divide-y divide-line px-4">

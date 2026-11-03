@@ -25,7 +25,7 @@ function basisNote(b: PriceBasis | undefined, currency: string, staff: boolean) 
     case 'shift':
       return `${b.name} shift price (set in Shift templates)`;
     case 'hourly':
-      return `${money(b.rateCents, currency)} an hour (set on the Pricing tab)`;
+      return `${money(b.rateCents, currency)} an hour (set on the Pricing and credit hours tab)`;
     default:
       return '';
   }

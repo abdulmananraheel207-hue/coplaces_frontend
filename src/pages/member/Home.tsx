@@ -215,6 +215,22 @@ export default function MemberHome() {
             ) : (
               <p className="text-sm text-slate">Your plan has no included meeting time. Rooms are charged by the hour and added to your next invoice.</p>
             )}
+            {s.creditResources.length > 0 && (
+              <div className="mt-4">
+                <p className="mb-1 text-sm font-semibold">Free credit hours</p>
+                <ul className="space-y-1 text-sm">
+                  {s.creditResources.map((r) => (
+                    <li key={r.id} className="flex items-baseline justify-between gap-3">
+                      <span>{r.name}</span>
+                      <span className="text-slate">
+                        <strong className="num">{fmtDuration(Math.max(0, r.credits * 30 - r.usedMinutes))}</strong> left of {fmtDuration(r.credits * 30)}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+                <p className="mt-2 text-xs text-slate">These are free on those rooms each month. Other rooms are charged by the hour.</p>
+              </div>
+            )}
           </Section>
 
           {s.amenities.length > 0 && s.member.status === 'active' && <MyAmenities allowance={s.amenities} requests={s.amenityRequests} currency={s.currency} />}

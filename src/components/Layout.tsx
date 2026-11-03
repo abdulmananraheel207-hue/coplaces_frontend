@@ -224,7 +224,7 @@ export function StaffShell() {
           )}
           {can(user, 'plans') && (
             <SideLink to="/pricing" icon={<Coins size={17} />}>
-              Pricing
+              Pricing and credit hours
             </SideLink>
           )}
           {can(user, 'contracts') && (
