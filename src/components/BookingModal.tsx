@@ -131,7 +131,7 @@ function BookingForm({
         <Input type="date" required min={today} max={addDays(today, 180)} value={date} onChange={(e) => setDate(e.target.value)} />
       </Field>
       {isDesk && (
-        <div role="group" aria-label="How long" className="flex gap-1.5">
+        <div role="group" aria-label="Duration" className="flex gap-1.5">
           <Button small variant={mode === 'day' ? 'primary' : 'secondary'} aria-pressed={mode === 'day'} onClick={() => setMode('day')}>
             Whole day
           </Button>

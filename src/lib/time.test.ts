@@ -29,10 +29,10 @@ describe('dates in the location time zone', () => {
 });
 
 describe('deposit and advance export', () => {
-  const entry = { occurredAt: '2026-03-04T19:30:00.000Z', memberName: 'Hamza', resourceName: null, kind: 'received', method: 'jazzcash', reference: 'TX1', amountCents: 500000 };
+  const entry = { occurredAt: '2026-03-04T19:30:00.000Z', memberName: 'Hamza', resourceName: null, kind: 'received', method: 'bank_transfer', reference: 'TX1', amountCents: 500000 };
 
   it('dates each movement on the location day', () => {
-    expect(depositRows([entry], KHI)[0]).toEqual(['2026-03-05', 'Hamza', '', 'Security deposit received', 'JazzCash', 'TX1', 5000]);
+    expect(depositRows([entry], KHI)[0]).toEqual(['2026-03-05', 'Hamza', '', 'Security deposit received', 'Online transfer', 'TX1', 5000]);
   });
 
   it('never writes "undefined" for a payment method it does not know', () => {

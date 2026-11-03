@@ -81,7 +81,10 @@ export type ResourceStatus = 'available' | 'maintenance' | 'cleaning' | 'reserve
 export type BookingStatus = 'confirmed' | 'completed' | 'cancelled' | 'no_show';
 export type VisitorStatus = 'expected' | 'checked_in' | 'checked_out' | 'cancelled';
 export type InvoiceStatus = 'open' | 'paid' | 'void';
-export type PaymentMethod = 'cash' | 'card' | 'bank_transfer' | 'jazzcash' | 'easypaisa' | 'cheque' | 'other';
+/** The four channels. `bank_transfer` is shown as "Online transfer". */
+export type PaymentMethod = 'cash' | 'card' | 'bank_transfer' | 'cheque';
+/** Whether money has arrived: a cheque is pending until it clears (only then does it count) or bounces (it never counts). */
+export type MoneyStatus = 'cleared' | 'pending' | 'bounced';
 
 export interface Plan {
   id: string;
@@ -140,7 +143,7 @@ export interface MemberDetail extends Omit<MemberRow, 'planName' | 'checkedIn'> 
   plan: Plan | null;
   shifts: { id: string; name: string; startTime: string; endTime: string; priceCents: number | null }[];
   /** Every movement of their advance and security deposit, oldest first. */
-  moneyEntries: { id: string; kind: 'advance' | 'advance_refund' | 'received' | 'refunded' | 'kept'; amountCents: number; method: PaymentMethod | null; reference: string; occurredAt: string }[];
+  moneyEntries: { id: string; kind: 'advance' | 'advance_refund' | 'received' | 'refunded' | 'kept'; amountCents: number; method: PaymentMethod | null; reference: string; occurredAt: string; status?: MoneyStatus }[];
   desks: { id: string; name: string; kind: ResourceKind }[];
   /** The spaces they get free credit hours on, with how many a month on each. Two credit hours are one hour. */
   creditResources: { id: string; name: string; credits: number }[];
@@ -342,6 +345,10 @@ export interface Payment {
   reversesPaymentId?: string | null;
   /** Set on a payment that was taken back. */
   reversedAt?: string | null;
+  /** A cheque is pending until it clears; only cleared payments pay the invoice. */
+  status: MoneyStatus;
+  clearedAt?: string | null;
+  bouncedAt?: string | null;
 }
 
 /** GET /reports/finance/charts: month by month figures and breakdowns, on the same definitions as the finance report. */
@@ -393,6 +400,9 @@ export interface Expense {
   description: string;
   amountCents: number;
   incurredOn: string;
+  /** How it was paid: cash comes out of the till, the rest out of the bank. */
+  method: PaymentMethod;
+  reference: string;
 }
 
 export interface StaffUser {
@@ -468,6 +478,122 @@ export interface FinanceReport {
   receivablesAging: Record<'current' | 'days1to30' | 'days31to60' | 'days61plus', { count: number; amountCents: number }>;
   amenities: { owedCents: number; collectedCents: number; owedBy: { memberId: string; name: string; owedCents: number }[] };
   deposits: { heldCents: number; receivedCents: number; refundedCents: number; keptCents: number; advanceCents: number; movements: DepositMovement[] };
+  /** This calendar month, whatever range is picked. */
+  currentMonth?: {
+    month: string;
+    invoicedCents: number;
+    invoiceCount: number;
+    collectedCents: number;
+    paidOnMonthInvoicesCents: number;
+    owedOnMonthInvoicesCents: number;
+    overdueNowCents: number;
+    overdueNowCount: number;
+    outstandingNowCents: number;
+    collectionRatePct: number | null;
+    pendingChequesCents: number;
+  };
+  /** The aged receivables ledger at the end of the range: what each member owes, by how late. */
+  agingByMember?: { memberId: string; name: string; company: string; currentCents: number; days1to30Cents: number; days31to60Cents: number; days61plusCents: number; totalCents: number; oldestDue: string }[];
+  channels?: {
+    flows: ChannelFlow[];
+    salesInCents: number;
+    cashInHandCents: number;
+    bankCents: number;
+    byChannel: Record<PaymentMethod, number>;
+    pendingCheques: { count: number; amountCents: number };
+  };
+  renewals?: Renewals;
+  churn?: Churn;
+}
+
+export interface ChannelFlow {
+  method: PaymentMethod;
+  salesInCents: number;
+  depositsInCents: number;
+  refundsOutCents: number;
+  expensesOutCents: number;
+  netCents: number;
+  /** Share of what was sold that came in through this channel, in percent. */
+  sharePct: number;
+}
+
+/** A contract, company contract or plan period: who it is, what they pay a month, and when it ends. */
+export interface CustomerBrief {
+  kind: 'contract' | 'company' | 'plan';
+  id: string;
+  memberId: string;
+  contractId: string | null;
+  name: string;
+  space: string;
+  startDate: string;
+  endDate: string | null;
+  monthlyCents: number;
+}
+
+export interface Renewals {
+  today: string;
+  overdue: { count: number; monthlyCents: number };
+  in30: { count: number; monthlyCents: number };
+  in60: { count: number; monthlyCents: number };
+  in90: { count: number; monthlyCents: number };
+  rows: (CustomerBrief & { company: string; depositHeldCents: number; daysLeft: number; within: 0 | 30 | 60 | 90 })[];
+}
+
+export interface Churn {
+  from: string;
+  to: string;
+  atStart: number;
+  activeNow: number;
+  lostCount: number;
+  wonCount: number;
+  lostMonthlyCents: number;
+  wonMonthlyCents: number;
+  churnPct: number | null;
+  lost: CustomerBrief[];
+  won: CustomerBrief[];
+}
+
+/** GET /reports/finance/channel: one channel's book for a range. */
+export interface ChannelBook extends Omit<ChannelFlow, 'sharePct'> {
+  from: string;
+  to: string;
+  currency: string;
+  balanceEndCents: number;
+  cashInHandCents: number;
+  bankCents: number;
+  pending: { count: number; amountCents: number };
+  rows: {
+    kind: 'payment' | 'reversal' | 'advance' | 'deposit' | 'refund' | 'expense';
+    id: string;
+    at: string;
+    receivedAt: string;
+    label: string;
+    who: string;
+    memberId: string | null;
+    invoiceId: string | null;
+    contractId: string | null;
+    reference: string;
+    amountCents: number;
+    status: MoneyStatus;
+  }[];
+}
+
+/** GET /cheques: a cheque that came in, on an invoice or for an advance or deposit. */
+export interface Cheque {
+  source: 'payment' | 'entry';
+  id: string;
+  kind: 'invoice' | 'advance' | 'deposit';
+  who: string;
+  memberId: string | null;
+  contractId: string | null;
+  invoiceId: string | null;
+  invoiceNumber: string | null;
+  amountCents: number;
+  reference: string;
+  receivedAt: string;
+  status: MoneyStatus;
+  clearedAt: string | null;
+  bouncedAt: string | null;
 }
 
 export type IncomeKind = 'subscription' | 'manual' | 'kept_deposit' | 'advance' | 'amenities';
@@ -556,6 +682,8 @@ export interface OrgInfo {
   maxMembers: number | null;
   periodEnd: string;
   expired: boolean;
+  /** Set when the business has a logo; changes when it does. The image comes from GET /branding/logo. */
+  logoVersion?: string | null;
 }
 
 // ---- Platform (super admin) ----
@@ -730,6 +858,8 @@ export interface DepositEntry {
   method: PaymentMethod | null;
   reference: string;
   occurredAt: string;
+  status?: MoneyStatus;
+  clearedAt?: string | null;
 }
 
 export interface DepositMovement extends DepositEntry {

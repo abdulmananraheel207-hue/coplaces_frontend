@@ -6,7 +6,8 @@ import { can, FRONT_DESK_PRESET, PERMISSION_KEYS } from '../../lib/permissions';
 import { AmenitiesSetup } from '../../components/Amenities';
 import { CredentialsModal } from '../../components/Credentials';
 import { useToast } from '../../components/toast';
-import { Button, Chip, ErrorNote, Field, Input, Loading, Modal, PageHeader, Section, Select } from '../../components/ui';
+import { Button, buttonClass, Chip, ErrorNote, Field, Input, Loading, Modal, PageHeader, Section, Select } from '../../components/ui';
+import { logoFromFile, useLogo } from '../../lib/logo';
 import { fmtDay, todayIn } from '../../lib/time';
 import { useHolidays, useRefresh } from '../../lib/queries';
 import type { Location, PermissionDef, PermissionKey, StaffUser } from '../../types';
@@ -416,6 +417,76 @@ function Team() {
   );
 }
 
+/** The business's logo, printed on invoices, agreements and contracts. Shrunk in the browser and kept with the business. */
+function LogoSetting() {
+  const { org, refresh } = useAuth();
+  const toast = useToast();
+  const logo = useLogo();
+  const [busy, setBusy] = useState(false);
+  const [problem, setProblem] = useState('');
+  const upload = async (file: File | undefined) => {
+    if (!file) return;
+    setProblem('');
+    setBusy(true);
+    try {
+      const dataUrl = await logoFromFile(file);
+      await api.put('/branding/logo', { dataUrl });
+      await refresh();
+      toast.ok('Logo saved. It now appears on invoices and agreements.');
+    } catch (e) {
+      setProblem(errorMessage(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+  const remove = async () => {
+    setBusy(true);
+    try {
+      await api.del('/branding/logo');
+      await refresh();
+      toast.ok('Logo removed');
+    } catch (e) {
+      toast.error(errorMessage(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <Section title="Business logo" aside="Printed on invoices, agreements and contracts">
+      <div className="surface flex flex-wrap items-center gap-5 p-4">
+        <div className="flex h-24 w-56 items-center justify-center rounded-lg border border-dashed border-line-strong bg-white p-2">
+          {logo ? <img src={logo} alt={`${org?.name ?? 'Business'} logo`} className="max-h-full max-w-full object-contain" /> : <span className="text-sm text-slate">No logo yet</span>}
+        </div>
+        <div className="space-y-2">
+          <div className="flex flex-wrap gap-2">
+            <label className={`${buttonClass('primary', true)} cursor-pointer ${busy ? 'pointer-events-none opacity-60' : ''}`}>
+              {logo ? 'Replace logo' : 'Upload logo'}
+              <input
+                type="file"
+                accept="image/png,image/jpeg,image/webp,image/svg+xml"
+                className="sr-only"
+                disabled={busy}
+                onChange={(e) => {
+                  void upload(e.target.files?.[0]);
+                  e.target.value = '';
+                }}
+              />
+            </label>
+            {logo && (
+              <Button small variant="ghost" disabled={busy} onClick={() => void remove()}>
+                Remove
+              </Button>
+            )}
+          </div>
+          <p className="max-w-md text-xs text-slate">PNG, JPEG, WebP or SVG. A wide logo on a transparent or white background prints best. It is resized to fit, so any size works.</p>
+          {busy && <p className="text-sm text-slate" role="status">Saving…</p>}
+          {problem && <p className="text-sm text-busy">{problem}</p>}
+        </div>
+      </div>
+    </Section>
+  );
+}
+
 export default function Settings() {
   const { user, locations, org } = useAuth();
   const [editing, setEditing] = useState<Location | 'new' | null>(null);
@@ -436,6 +507,8 @@ export default function Settings() {
 
         {can(user, 'holidays') && <Holidays />}
         {can(user, 'plans') && <AmenitiesSetup />}
+
+        {owner && <LogoSetting />}
 
         {owner && (
           <>

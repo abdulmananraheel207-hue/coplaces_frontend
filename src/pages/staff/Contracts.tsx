@@ -5,13 +5,16 @@ import { useAuth, useLocation } from '../../auth';
 import { CompanyContractWizard } from '../../components/CompanyContractWizard';
 import { CompanyEditForm, ContractPeople, ExtendForm } from '../../components/CompanyContractTools';
 import { printContract } from '../../components/ContractPrint';
+import { useLogo } from '../../lib/logo';
 import { MemberSelect } from '../../components/MemberSelect';
 import { useToast } from '../../components/toast';
 import { Button, Chip, Empty, ErrorNote, Field, Input, Loading, Modal, PageHeader, Select, Textarea } from '../../components/ui';
-import { csvAmount, downloadCsv, fromCents, KIND_LABEL, METHOD_LABEL, money, titleCase, toCents } from '../../lib/format';
+import { csvAmount, downloadCsv, fromCents, KIND_LABEL, METHOD_LABEL, methodName, money, titleCase, toCents } from '../../lib/format';
+import { ChequeActions, ChequeChip } from '../../components/ChequeActions';
 import { FINANCE_KEYS, useRefresh, useResources } from '../../lib/queries';
 import { fmtDate, localDateOf, todayIn } from '../../lib/time';
-import type { Contract, DepositEntry, PaymentMethod } from '../../types';
+import type { Contract, DepositEntry, PaymentMethod } from '../../types';
+
 import { qd } from '../../lib/queryDefs';
 
 const contractTone = { draft: 'hold', active: 'ok', ended: 'idle', cancelled: 'idle' } as const;
@@ -132,6 +135,7 @@ function MovementFields({ method, setMethod, reference, setReference, noMoney }:
       <Field label="Reference" hint="A transfer or cheque number, if there is one.">
         <Input value={reference} maxLength={100} onChange={(e) => setReference(e.target.value)} />
       </Field>
+      {method === 'cheque' && <p className="text-sm text-slate sm:col-span-2">A cheque coming in is recorded as waiting to clear: it counts once you mark it cleared (Finance, Cheques).</p>}
     </div>
   );
 }
@@ -206,8 +210,16 @@ function DepositHistory({ contract }: { contract: Contract }) {
               <tr key={e.id}>
                 <td className="num whitespace-nowrap">{fmtDate(localDateOf(e.occurredAt, loc.timezone))}</td>
                 <td>{ENTRY_WORD[e.kind]}</td>
-                <td>{[e.method ? METHOD_LABEL[e.method] : '', e.reference].filter(Boolean).join(', ') || '—'}</td>
-                <td className="r font-semibold">{money(e.amountCents, loc.currency)}</td>
+                <td>
+                      {[e.method ? methodName(e.method) : '', e.reference].filter(Boolean).join(', ') || '—'}
+                      {e.method === 'cheque' && e.status && (e.kind === 'advance' || e.kind === 'received') && (
+                        <span className="mt-1 flex flex-wrap items-center gap-1.5">
+                          <ChequeChip status={e.status} />
+                          {e.status === 'pending' && <ChequeActions source="entry" id={e.id} />}
+                        </span>
+                      )}
+                    </td>
+                <td className={`r font-semibold ${e.status === 'bounced' ? 'text-slate line-through' : e.status === 'pending' ? 'text-slate' : ''}`}>{money(e.amountCents, loc.currency)}</td>
               </tr>
             ))}
           </tbody>
@@ -279,6 +291,7 @@ function Contracts() {
   const [receiving, setReceiving] = useState<{ c: Contract; what: 'advance' | 'deposit' } | null>(null);
   const [history, setHistory] = useState<Contract | null>(null);
   const { org } = useAuth();
+  const logo = useLogo();
   const act = useMutation({
     mutationFn: (v: { id: string; path: 'activate' | 'end' | 'cancel' | 'deposit'; body?: object; ok: string }) => api.post(`/contracts/${v.id}/${v.path}`, v.body),
     onSuccess: (_d, v) => {
@@ -465,7 +478,7 @@ function Contracts() {
                         </>
                       )}{' '}
                       {!c.companyName && (
-                        <Button small variant="ghost" onClick={() => void printContract(c, loc, org?.name ?? loc.name)}>
+                        <Button small variant="ghost" onClick={() => void printContract(c, loc, org?.name ?? loc.name, logo)}>
                           Print
                         </Button>
                       )}

@@ -7,6 +7,8 @@ import type {
   Contract,
   Dashboard,
   Expense,
+  ChannelBook,
+  Cheque,
   FinanceCharts,
   FinanceReport,
   FloorObject,
@@ -72,6 +74,16 @@ export const qd = {
       queryFn: () => api.get<FinanceCharts>('/reports/finance/charts', { locationId: loc, from, to }),
     };
   },
+  /** One channel's book (cash, card, online transfer or cheque) for the same period as the report. */
+  channelBook: (loc: string, today: string, months: Period, method: string) => {
+    const { from, to } = periodRange(months, today);
+    return {
+      queryKey: ['reports', loc, from, to, 'channel', method],
+      queryFn: () => api.get<ChannelBook>('/reports/finance/channel', { locationId: loc, from, to, method }),
+    };
+  },
+  /** Cheques that came in, optionally only those in one state (pending: still waiting to clear). */
+  cheques: (loc: string, status = '') => ({ queryKey: ['cheques', loc, status], queryFn: () => api.get<Cheque[]>('/cheques', { locationId: loc, status: status || undefined }) }),
   /** Expenses of one month (YYYY-MM), or of every month when it is empty, optionally of one category. */
   expenses: (loc: string, month: string, category: string) => {
     const from = month ? `${month}-01` : undefined;

@@ -5,10 +5,10 @@ import { useLocation } from '../auth';
 import { MemberSelect } from './MemberSelect';
 import { useToast } from './toast';
 import { Button, ErrorNote, Field, Input, Loading, Section, Select } from './ui';
-import { fromCents, money, toCents } from '../lib/format';
+import { fromCents, METHOD_LABEL, METHODS, money, toCents } from '../lib/format';
 import { FINANCE_KEYS, useAmenities, useAmenityRequests, useRefresh, useResources } from '../lib/queries';
 import { fmtTime } from '../lib/time';
-import type { Amenity, AmenityRequest, MemberDetail } from '../types';
+import type { Amenity, AmenityRequest, MemberDetail, PaymentMethod } from '../types';
 
 /** What the owner gives a member: the amenities they get free each day (ticked, with how many) and the credit hours on chosen rooms. */
 export interface FreeState {
@@ -288,21 +288,32 @@ export function AmenityDesk() {
 }
 
 /** The member collected what they owe for amenities. */
+/** Collects what a member owes for amenities at the desk, through the channel they paid with (cash unless changed). */
 export function CollectButton({ memberId, label = 'Collected' }: { memberId: string; label?: string }) {
   const toast = useToast();
   const refresh = useRefresh();
+  const [method, setMethod] = useState<PaymentMethod>('cash');
   const collect = useMutation({
-    mutationFn: () => api.post('/amenities/collect', { memberId }),
+    mutationFn: () => api.post('/amenities/collect', { memberId, method }),
     onSuccess: () => {
-      toast.ok('Marked as collected');
+      toast.ok(method === 'cheque' ? 'Cheque recorded. It counts once it clears' : 'Marked as collected');
       void refresh(...FINANCE_KEYS);
     },
     onError: (e) => toast.error(errorMessage(e)),
   });
   return (
-    <Button small disabled={collect.isPending} onClick={() => collect.mutate()}>
-      {label}
-    </Button>
+    <span className="inline-flex items-center gap-1.5">
+      <Select aria-label="How it was paid" value={method} onChange={(e) => setMethod(e.target.value as PaymentMethod)} className="!w-auto !py-1 text-xs">
+        {METHODS.map((m) => (
+          <option key={m} value={m}>
+            {METHOD_LABEL[m]}
+          </option>
+        ))}
+      </Select>
+      <Button small disabled={collect.isPending} onClick={() => collect.mutate()}>
+        {label}
+      </Button>
+    </span>
   );
 }
 

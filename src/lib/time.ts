@@ -120,3 +120,30 @@ export function zonedToUtc(date: string, time: string, tz: string): Date {
   guess = wall - offsetMs(guess, tz);
   return new Date(guess);
 }
+
+/** A day plus whole calendar months, keeping the day of the month (31 Jan + 1 month = 28 or 29 Feb). */
+function addMonthsToDay(day: string, n: number) {
+  const [y, m, d] = day.split('-').map(Number) as [number, number, number];
+  const first = new Date(Date.UTC(y, m - 1 + n, 1));
+  const last = new Date(Date.UTC(first.getUTCFullYear(), first.getUTCMonth() + 1, 0)).getUTCDate();
+  return `${first.getUTCFullYear()}-${String(first.getUTCMonth() + 1).padStart(2, '0')}-${String(Math.min(d, last)).padStart(2, '0')}`;
+}
+
+/**
+ * How long a period lasts, both days included: "1 month", "2 months and 5 days", "20 days", with the total days alongside when it
+ * runs past a month ("3 months (92 days)"). Null when the end is before the start.
+ */
+export function spanText(start: string, end: string) {
+  const after = addDays(end, 1);
+  const days = daysBetween(start, after);
+  if (days <= 0) return null;
+  let months = 0;
+  while (addMonthsToDay(start, months + 1) <= after) months++;
+  const rest = daysBetween(addMonthsToDay(start, months), after);
+  const part = (n: number, w: string) => `${n} ${w}${n === 1 ? '' : 's'}`;
+  const years = Math.floor(months / 12);
+  const m = months % 12;
+  const words = [years ? part(years, 'year') : '', m ? part(m, 'month') : '', rest ? part(rest, 'day') : ''].filter(Boolean);
+  const text = words.length > 1 ? `${words.slice(0, -1).join(', ')} and ${words.at(-1)}` : words[0]!;
+  return months ? `${text} (${part(days, 'day')})` : text;
+}

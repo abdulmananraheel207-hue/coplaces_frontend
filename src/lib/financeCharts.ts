@@ -89,7 +89,7 @@ export function agingParts(r: FinanceReport): Part[] {
   const a = r.receivablesAging;
   return [
     { key: 'current', label: 'Not yet due', color: AGING_RAMP[0], cents: a.current.amountCents, count: a.current.count },
-    { key: 'days1to30', label: '1 to 30 days late', color: AGING_RAMP[1], cents: a.days1to30.amountCents, count: a.days1to30.count },
+    { key: 'days1to30', label: 'Up to 30 days late', color: AGING_RAMP[1], cents: a.days1to30.amountCents, count: a.days1to30.count },
     { key: 'days31to60', label: '31 to 60 days late', color: AGING_RAMP[2], cents: a.days31to60.amountCents, count: a.days31to60.count },
     { key: 'days61plus', label: 'Over 60 days late', color: AGING_RAMP[3], cents: a.days61plus.amountCents, count: a.days61plus.count },
   ];
@@ -213,4 +213,20 @@ export function collectionRate(c: FinanceCharts) {
   const billed = c.months.reduce((s, m) => s + m.billedCents, 0);
   const collected = c.months.reduce((s, m) => s + m.collectedCents, 0);
   return billed > 0 ? Math.round((collected / billed) * 100) : null;
+}
+
+/** The four channels in a fixed order and colour, so cash is always the same colour on every chart. */
+export const CHANNEL_ORDER = ['cash', 'card', 'bank_transfer', 'cheque'] as const;
+export const CHANNEL_COLOR: Record<(typeof CHANNEL_ORDER)[number], string> = { cash: SERIES[2], card: SERIES[0], bank_transfer: SERIES[6], cheque: SERIES[3] };
+const CHANNEL_NAME = { cash: 'Cash', card: 'Card', bank_transfer: 'Online transfer', cheque: 'Cheque' } as const;
+
+/**
+ * Money in by channel, month by month, stacked: invoice payments and advances by how they were paid (cleared cheques only). Deposits
+ * kept are left out: no money moved when they were kept. Channels with nothing in the period are left out but keep their colours.
+ */
+export function channelsByMonth(c: FinanceCharts): ColumnData {
+  return {
+    categories: c.months.map((m) => m.month),
+    series: CHANNEL_ORDER.map((k) => ({ key: k, label: CHANNEL_NAME[k], color: CHANNEL_COLOR[k], values: c.months.map((m) => m.moneyInByMethod[k] ?? 0) })).filter((x) => x.values.some((v) => v !== 0)),
+  };
 }

@@ -1,5 +1,6 @@
 import { useEffect, useId, useRef, useState, type ButtonHTMLAttributes, type InputHTMLAttributes, type ReactNode, type SelectHTMLAttributes, type TextareaHTMLAttributes } from 'react';
 import { CountText } from './Count';
+import { cleanMoney } from '../lib/format';
 import { NavLink } from 'react-router';
 import { X } from 'lucide-react';
 
@@ -37,6 +38,10 @@ const fieldCls =
   'w-full rounded-lg border border-line-strong bg-paper px-3 py-2 text-sm text-ink shadow-[0_1px_2px_rgb(16_24_40/0.04)] transition-[border-color,box-shadow] placeholder:text-slate/70 hover:border-ink/35 focus:border-ink focus:shadow-[0_0_0_3px_rgb(246_195_36/0.35)] focus:outline-none disabled:bg-plaster disabled:text-slate';
 
 export const Input = (props: InputHTMLAttributes<HTMLInputElement>) => <input {...props} className={`${fieldCls} ${props.className ?? ''}`} />;
+/** A box for an amount of money: only digits and one decimal point (two places) can be typed or pasted into it. */
+export const MoneyInput = ({ value, onValue, ...props }: Omit<InputHTMLAttributes<HTMLInputElement>, 'value' | 'onChange' | 'type'> & { value: string; onValue: (v: string) => void }) => (
+  <input {...props} type="text" inputMode="decimal" autoComplete="off" value={value} onChange={(e) => onValue(cleanMoney(e.target.value))} className={`${fieldCls} ${props.className ?? ''}`} />
+);
 export const Select = (props: SelectHTMLAttributes<HTMLSelectElement>) => <select {...props} className={`${fieldCls} ${props.className ?? ''}`} />;
 export const Textarea = (props: TextareaHTMLAttributes<HTMLTextAreaElement>) => (
   <textarea rows={3} {...props} className={`${fieldCls} ${props.className ?? ''}`} />

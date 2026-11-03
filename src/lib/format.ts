@@ -81,12 +81,17 @@ export const KIND_LABEL = {
 export const METHOD_LABEL = {
   cash: 'Cash',
   card: 'Card',
-  bank_transfer: 'Bank transfer',
-  jazzcash: 'JazzCash',
-  easypaisa: 'Easypaisa',
+  bank_transfer: 'Online transfer',
   cheque: 'Cheque',
-  other: 'Other',
 } as const;
+
+/** The channels in the order they are offered. */
+export const METHODS = ['cash', 'card', 'bank_transfer', 'cheque'] as const;
+
+/** A channel's name, or the method stored on an old record (JazzCash and the like became online transfers). */
+export const methodName = (m: string | null | undefined) => (m ? ((METHOD_LABEL as Record<string, string>)[m] ?? m.charAt(0).toUpperCase() + m.slice(1).replace(/_/g, ' ')) : '');
+
+export const MONEY_STATUS_LABEL = { cleared: 'Cleared', pending: 'Waiting to clear', bounced: 'Bounced' } as const;
 
 export const titleCase = (s: string) => s.charAt(0).toUpperCase() + s.slice(1).replace(/_/g, ' ');
 
@@ -115,4 +120,15 @@ export function downloadCsv(filename: string, rows: (string | number | null | un
   a.download = filename;
   a.click();
   URL.revokeObjectURL(url);
+}
+
+/**
+ * What a money box keeps of what was typed: digits and one decimal point with at most two places. Letters, signs, spaces and commas
+ * are dropped, so a price can never hold anything that is not a number.
+ */
+export function cleanMoney(raw: string) {
+  const digits = raw.replace(/[^0-9.]/g, '');
+  const dot = digits.indexOf('.');
+  if (dot === -1) return digits;
+  return `${digits.slice(0, dot)}.${digits.slice(dot + 1).replace(/\./g, '').slice(0, 2)}`;
 }

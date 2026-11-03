@@ -37,6 +37,7 @@ const {
   FinanceLayout,
   FinanceOverview,
   ProfitLoss,
+  FinanceChannel,
   Payments,
   Plans,
   Pricing,
@@ -90,6 +91,18 @@ function StaffRoutes() {
                 <RequireFeature feature="reports">
                   <Suspense fallback={<Loading />}>
                     <FinanceOverview />
+                  </Suspense>
+                </RequireFeature>
+              </RequirePermission>
+            }
+          />
+          <Route
+            path="channel/:channel"
+            element={
+              <RequirePermission permission="reports">
+                <RequireFeature feature="reports">
+                  <Suspense fallback={<Loading />}>
+                    <FinanceChannel />
                   </Suspense>
                 </RequireFeature>
               </RequirePermission>

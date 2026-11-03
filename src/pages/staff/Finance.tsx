@@ -11,6 +11,14 @@ import { qd } from '../../lib/queryDefs';
 
 export { PERIOD_WORD } from '../../lib/financePeriod';
 
+/** One tab per channel, so the owner sees what came in and went out through each. The address names it in plain words. */
+export const CHANNEL_TABS = [
+  { slug: 'cash', method: 'cash', label: 'Cash' },
+  { slug: 'card', method: 'card', label: 'Card' },
+  { slug: 'online-transfer', method: 'bank_transfer', label: 'Online transfer' },
+  { slug: 'cheque', method: 'cheque', label: 'Cheques' },
+] as const;
+
 /**
  * The time span shared by the overview and the profit and loss. It lives in the address (?months=3), so it survives a
  * reload, can be shared as a link, and stays the same when moving between the two.
@@ -91,6 +99,7 @@ export function FinanceLayout() {
     ...(reports
       ? [
           { to: withPeriod('/finance/overview', months), label: 'Overview' },
+          ...CHANNEL_TABS.map((c) => ({ to: withPeriod(`/finance/channel/${c.slug}`, months), label: c.label })),
           { to: withPeriod('/finance/profit-loss', months), label: 'Profit and loss' },
         ]
       : []),

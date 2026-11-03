@@ -39,6 +39,7 @@ const LOADERS = {
   FinanceLayout: () => import('./pages/staff/Finance').then((m) => m.FinanceLayout),
   FinanceOverview: () => import('./pages/staff/FinanceOverview').then((m) => m.default),
   ProfitLoss: () => import('./pages/staff/ProfitLoss').then((m) => m.default),
+  FinanceChannel: () => import('./pages/staff/FinanceChannel').then((m) => m.default),
   Payments: () => import('./pages/staff/Payments').then((m) => m.default),
   Plans: () => import('./pages/staff/Plans').then((m) => m.default),
   Pricing: () => import('./pages/staff/Pricing').then((m) => m.default),
@@ -55,7 +56,7 @@ export const PAGES = Object.fromEntries(
 
 /** Which pages each kind of person can reach; only those are fetched ahead. */
 export const PRELOAD: Record<'staff' | 'member' | 'platform', Name[]> = {
-  staff: ['Dashboard', 'FrontDesk', 'Live', 'Bookings', 'Calendar', 'Members', 'MemberDetail', 'Spaces', 'FinanceLayout', 'FinanceIndex', 'FinanceOverview', 'ProfitLoss', 'Invoices', 'InvoiceView', 'Payments', 'Expenses', 'Plans', 'Pricing', 'Contracts', 'Maintenance', 'Announcements', 'Devices', 'Settings', 'SpaceScan'],
+  staff: ['Dashboard', 'FrontDesk', 'Live', 'Bookings', 'Calendar', 'Members', 'MemberDetail', 'Spaces', 'FinanceLayout', 'FinanceIndex', 'FinanceOverview', 'FinanceChannel', 'ProfitLoss', 'Invoices', 'InvoiceView', 'Payments', 'Expenses', 'Plans', 'Pricing', 'Contracts', 'Maintenance', 'Announcements', 'Devices', 'Settings', 'SpaceScan'],
   member: ['MemberHome', 'MemberBook', 'MemberVisitors', 'MemberInvoices', 'InvoiceView', 'PasswordForm', 'SpaceScan'],
   platform: ['PlatformOverview', 'PlatformSpaces', 'PlatformSpaceDetail', 'PlatformPackages', 'PlatformPayments', 'PasswordForm'],
 };

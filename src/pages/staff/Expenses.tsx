@@ -5,10 +5,11 @@ import { api, errorMessage } from '../../api';
 import { useLocation } from '../../auth';
 import { useToast } from '../../components/toast';
 import { Button, ConfirmButton, Empty, ErrorNote, Field, Input, Loading, Modal, Select } from '../../components/ui';
-import { csvAmount, downloadCsv, fromCents, money, titleCase, toCents } from '../../lib/format';
+import { csvAmount, downloadCsv, fromCents, METHOD_LABEL, methodName, METHODS, money, titleCase, toCents } from '../../lib/format';
 import { FINANCE_KEYS, useRefresh } from '../../lib/queries';
 import { addDays, addMonths, fmtDate, todayIn } from '../../lib/time';
-import type { Expense } from '../../types';
+import type { Expense, PaymentMethod } from '../../types';
+
 import { qd } from '../../lib/queryDefs';
 
 export const EXPENSE_CATEGORIES = ['rent', 'utilities', 'internet', 'cleaning', 'supplies', 'salaries', 'maintenance', 'marketing', 'software', 'other'];
@@ -23,13 +24,15 @@ function ExpenseForm({ initial, onDone }: { initial?: Expense; onDone: () => voi
     description: initial?.description ?? '',
     amount: initial ? fromCents(initial.amountCents) : '',
     incurredOn: initial?.incurredOn ?? todayIn(loc.timezone),
+    method: (initial?.method ?? 'cash') as PaymentMethod,
+    reference: initial?.reference ?? '',
   });
-  const set = (k: keyof typeof v, val: string) => setV((x) => ({ ...x, [k]: val }));
+  const set = <K extends keyof typeof v>(k: K, val: (typeof v)[K]) => setV((x) => ({ ...x, [k]: val }));
   const save = useMutation({
     mutationFn: () => {
       const cents = toCents(v.amount);
       if (!cents) throw new Error('Enter the amount as a number greater than zero, like 120 or 45.50');
-      const body = { category: v.category, vendor: v.vendor, description: v.description, amountCents: cents, incurredOn: v.incurredOn };
+      const body = { category: v.category, vendor: v.vendor, description: v.description, amountCents: cents, incurredOn: v.incurredOn, method: v.method, reference: v.reference };
       return initial ? api.patch(`/expenses/${initial.id}`, body) : api.post('/expenses', { ...body, locationId: loc.id });
     },
     onSuccess: () => {
@@ -69,6 +72,20 @@ function ExpenseForm({ initial, onDone }: { initial?: Expense; onDone: () => voi
       <Field label="Description">
         <Input value={v.description} onChange={(e) => set('description', e.target.value)} maxLength={300} />
       </Field>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <Field label="Paid by" hint={v.method === 'cash' ? 'Comes out of cash in hand.' : 'Comes out of the bank.'}>
+          <Select value={v.method} onChange={(e) => set('method', e.target.value as PaymentMethod)}>
+            {METHODS.map((m) => (
+              <option key={m} value={m}>
+                {METHOD_LABEL[m]}
+              </option>
+            ))}
+          </Select>
+        </Field>
+        <Field label="Reference (optional)" hint="Receipt, transfer ID or cheque number.">
+          <Input value={v.reference} onChange={(e) => set('reference', e.target.value)} maxLength={100} />
+        </Field>
+      </div>
       {save.error && <ErrorNote error={new Error(errorMessage(save.error))} />}
       <div className="flex justify-end gap-2">
         <Button onClick={onDone}>Cancel</Button>
@@ -120,7 +137,7 @@ export default function Expenses() {
           <Button
             disabled={rows.length === 0}
             onClick={() =>
-              downloadCsv('expenses.csv', [['Date', 'Category', 'Vendor', 'Description', 'Amount'], ...rows.map((e) => [e.incurredOn, e.category, e.vendor, e.description, csvAmount(e.amountCents)])])
+              downloadCsv('expenses.csv', [['Date', 'Category', 'Vendor', 'Description', 'Paid by', 'Reference', 'Amount'], ...rows.map((e) => [e.incurredOn, e.category, e.vendor, e.description, methodName(e.method ?? 'cash'), e.reference ?? '', csvAmount(e.amountCents)])])
             }
           >
             <Download size={15} /> Export
@@ -146,6 +163,7 @@ export default function Expenses() {
                 <th>Category</th>
                 <th>Vendor</th>
                 <th>Description</th>
+                <th>Paid by</th>
                 <th className="r">Amount</th>
                 <th>
                   <span className="sr-only">Actions</span>
@@ -159,6 +177,10 @@ export default function Expenses() {
                   <td>{titleCase(e.category)}</td>
                   <td>{e.vendor || <span className="text-slate">—</span>}</td>
                   <td className="text-slate">{e.description}</td>
+                  <td>
+                    {methodName(e.method ?? 'cash')}
+                    {e.reference && <span className="block text-xs text-slate">{e.reference}</span>}
+                  </td>
                   <td className="r font-semibold">{money(e.amountCents, loc.currency)}</td>
                   <td className="r whitespace-nowrap">
                     <Button small variant="ghost" onClick={() => setEditing(e)}>
@@ -173,7 +195,7 @@ export default function Expenses() {
             </tbody>
             <tfoot>
               <tr>
-                <td colSpan={4} className="px-3 py-2.5 text-right text-sm font-semibold">
+                <td colSpan={5} className="px-3 py-2.5 text-right text-sm font-semibold">
                   Total
                 </td>
                 <td className="r px-3 py-2.5 font-bold">{money(total, loc.currency)}</td>

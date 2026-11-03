@@ -5,7 +5,9 @@ import { Printer } from 'lucide-react';
 import { api, errorMessage } from '../api';
 import { useAuth } from '../auth';
 import { can } from '../lib/permissions';
-import { fromCents, METHOD_LABEL, money, titleCase, toCents } from '../lib/format';
+import { fromCents, METHOD_LABEL, METHODS, money, titleCase, toCents } from '../lib/format';
+import { ChequeActions, ChequeChip } from './ChequeActions';
+import { useLogo } from '../lib/logo';
 import { FINANCE_KEYS, useRefresh } from '../lib/queries';
 import { fmtDate, localDateOf } from '../lib/time';
 import type { InvoiceDetail, PaymentMethod } from '../types';
@@ -15,19 +17,22 @@ import { Button, Chip, ConfirmButton, ErrorNote, Field, Input, Loading, Modal, S
 function PaymentForm({ inv, onDone }: { inv: InvoiceDetail; onDone: () => void }) {
   const toast = useToast();
   const refresh = useRefresh();
-  const [amount, setAmount] = useState(fromCents(inv.balanceCents));
-  const [method, setMethod] = useState<PaymentMethod>('bank_transfer');
+  // A cheque already waiting to clear holds that part of the balance.
+  const waiting = inv.payments.filter((p) => p.status === 'pending').reduce((s, p) => s + p.amountCents, 0);
+  const open = inv.balanceCents - waiting;
+  const [amount, setAmount] = useState(fromCents(open));
+  const [method, setMethod] = useState<PaymentMethod>('cash');
   const [reference, setReference] = useState('');
   const [notes, setNotes] = useState('');
   const save = useMutation({
     mutationFn: () => {
       const cents = toCents(amount);
       if (!cents) throw new Error('Enter an amount greater than zero, like 150 or 99.50');
-      if (cents > inv.balanceCents) throw new Error(`That is more than the ${money(inv.balanceCents, inv.currency)} still owed`);
+      if (cents > open) throw new Error(`That is more than the ${money(open, inv.currency)} still owed${waiting ? ' after the cheque waiting to clear' : ''}`);
       return api.post(`/invoices/${inv.id}/payments`, { amountCents: cents, method, reference, notes });
     },
     onSuccess: () => {
-      toast.ok('Payment recorded');
+      toast.ok(method === 'cheque' ? 'Cheque recorded. The invoice is paid once it clears' : 'Payment recorded');
       void refresh(...FINANCE_KEYS);
       onDone();
     },
@@ -42,6 +47,7 @@ function PaymentForm({ inv, onDone }: { inv: InvoiceDetail; onDone: () => void }
     >
       <p className="text-sm">
         Balance due on {inv.number}: <strong>{money(inv.balanceCents, inv.currency)}</strong>
+        {waiting > 0 && <span className="block text-slate">{money(waiting, inv.currency)} of it is a cheque waiting to clear, so up to {money(open, inv.currency)} can be recorded now.</span>}
       </p>
       <div className="grid gap-3 sm:grid-cols-2">
         <Field label={`Amount received (${inv.currency})`}>
@@ -49,7 +55,7 @@ function PaymentForm({ inv, onDone }: { inv: InvoiceDetail; onDone: () => void }
         </Field>
         <Field label="Paid by">
           <Select value={method} onChange={(e) => setMethod(e.target.value as PaymentMethod)}>
-            {(Object.keys(METHOD_LABEL) as PaymentMethod[]).map((m) => (
+            {METHODS.map((m) => (
               <option key={m} value={m}>
                 {METHOD_LABEL[m]}
               </option>
@@ -57,7 +63,8 @@ function PaymentForm({ inv, onDone }: { inv: InvoiceDetail; onDone: () => void }
           </Select>
         </Field>
       </div>
-      <Field label="Reference (optional)" hint="Bank transfer ID, card receipt number, cheque number.">
+      {method === 'cheque' && <p className="rounded-lg border border-hold/30 bg-hold-wash px-3 py-2 text-sm">A cheque is recorded as waiting to clear. The invoice stays open until you mark it cleared; if it bounces, the member still owes it.</p>}
+      <Field label={method === 'cheque' ? 'Cheque number and bank' : 'Reference (optional)'} hint="Transfer ID, card receipt number, or cheque number.">
         <Input value={reference} onChange={(e) => setReference(e.target.value)} maxLength={200} />
       </Field>
       <Field label="Note (optional)">
@@ -84,6 +91,7 @@ export function InvoiceView({ backTo, staff }: { backTo: string; staff: boolean 
   const manager = can(user, 'billing_admin');
 
   const q = useQuery({ queryKey: ['invoice', id], queryFn: () => api.get<InvoiceDetail>(`/invoices/${id}`) });
+  const logo = useLogo();
   const voidIt = useMutation({
     mutationFn: () => api.post(`/invoices/${id}/void`),
     onSuccess: () => {
@@ -133,6 +141,7 @@ export function InvoiceView({ backTo, staff }: { backTo: string; staff: boolean 
       <article className="surface mx-auto max-w-3xl p-6 sm:p-10" aria-label={`Invoice ${inv.number}`}>
         <header className="flex flex-wrap items-start justify-between gap-4 border-b border-line pb-6">
           <div>
+            {logo && <img src={logo} alt="" className="mb-4 max-h-16 max-w-56 object-contain" />}
             <h1 className="display text-[2rem]">Invoice {inv.number}</h1>
             <p className="mt-1 text-sm text-slate">
               {inv.location.name}
@@ -213,18 +222,26 @@ export function InvoiceView({ backTo, staff }: { backTo: string; staff: boolean 
                     // Payments are never deleted: taking one back adds a reversal, dated when it was taken back.
                     const reversal = !!p.reversesPaymentId;
                     const reversed = !!p.reversedAt;
+                    const bounced = p.status === 'bounced';
                     return (
-                      <tr key={p.id} className={reversed ? 'text-slate' : undefined}>
+                      <tr key={p.id} className={reversed || bounced ? 'text-slate' : undefined}>
                         <td className="num whitespace-nowrap">{fmtDate(localDateOf(p.paidAt, inv.timezone))}</td>
                         <td>
                           {reversal ? 'Taken back' : METHOD_LABEL[p.method]}
                           {reversal ? p.notes && p.notes !== 'Payment reversed' && <span className="text-slate">, {p.notes}</span> : p.reference && <span className="text-slate">, {p.reference}</span>}
                           {reversed && <span className="ml-2 rounded bg-plaster px-1.5 py-0.5 text-xs font-semibold">Taken back</span>}
+                          {p.method === 'cheque' && !reversal && (
+                            <span className="ml-2">
+                              <ChequeChip status={p.status} />
+                              {p.status === 'cleared' && p.clearedAt && <span className="ml-1 text-xs text-slate">on {fmtDate(localDateOf(p.clearedAt, inv.timezone))}</span>}
+                            </span>
+                          )}
                         </td>
-                        <td className={`r ${reversed ? 'line-through' : ''}`}>{money(p.amountCents, cur)}</td>
+                        <td className={`r ${reversed || bounced ? 'line-through' : ''}`}>{money(p.amountCents, cur)}</td>
                         {staff && manager && (
                           <td className="r no-print">
-                            {!reversal && !reversed && (
+                            {p.status === 'pending' && <ChequeActions source="payment" id={p.id} />}
+                            {!reversal && !reversed && p.status === 'cleared' && (
                               <ConfirmButton question="Take this payment back? The balance goes back up, and a reversal is recorded today." yes="Yes, take it back" busy={removePayment.isPending} onConfirm={() => removePayment.mutate(p.id)}>
                                 Take back
                               </ConfirmButton>

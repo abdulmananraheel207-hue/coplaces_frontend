@@ -5,7 +5,8 @@ import { useAuth, useLocation } from '../auth';
 import { can } from '../lib/permissions';
 import { useToast } from './toast';
 import { Button, Chip, ErrorNote, Field, Input, Modal, Section, Select } from './ui';
-import { fromCents, METHOD_LABEL, money, toCents } from '../lib/format';
+import { fromCents, METHOD_LABEL, methodName, money, toCents } from '../lib/format';
+import { ChequeActions, ChequeChip } from './ChequeActions';
 import { FINANCE_KEYS, useRefresh } from '../lib/queries';
 import { fmtDate, localDateOf } from '../lib/time';
 import type { MemberDetail, PaymentMethod } from '../types';
@@ -57,6 +58,7 @@ export function MoneyFields({ value, onChange, locked }: { value: MoneyState; on
           </Field>
         </div>
       )}
+      {any && value.method === 'cheque' && <p className="text-sm text-slate">A cheque is recorded as waiting to clear. The advance comes off their invoices and the deposit is held only once you mark it cleared (Finance, Cheques).</p>}
       {!moneyOk(value) && <p className="text-sm text-busy">Enter the amounts as numbers, like 5000.</p>}
     </fieldset>
   );
@@ -240,8 +242,16 @@ export function MoneySection({ m, canSettle }: { m: MemberDetail; canSettle: boo
                   <tr key={e.id}>
                     <td className="num whitespace-nowrap">{fmtDate(localDateOf(e.occurredAt, loc.timezone))}</td>
                     <td>{ENTRY_WORD[e.kind]}</td>
-                    <td>{[e.method ? METHOD_LABEL[e.method] : '', e.reference].filter(Boolean).join(', ') || '—'}</td>
-                    <td className="r font-semibold">{money(e.amountCents, loc.currency)}</td>
+                    <td>
+                      {[e.method ? methodName(e.method) : '', e.reference].filter(Boolean).join(', ') || '—'}
+                      {e.method === 'cheque' && e.status && (e.kind === 'advance' || e.kind === 'received') && (
+                        <span className="mt-1 flex flex-wrap items-center gap-1.5">
+                          <ChequeChip status={e.status} />
+                          {e.status === 'pending' && <ChequeActions source="entry" id={e.id} />}
+                        </span>
+                      )}
+                    </td>
+                    <td className={`r font-semibold ${e.status === 'bounced' ? 'text-slate line-through' : e.status === 'pending' ? 'text-slate' : ''}`}>{money(e.amountCents, loc.currency)}</td>
                   </tr>
                 ))}
               </tbody>

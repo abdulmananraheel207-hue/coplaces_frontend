@@ -65,7 +65,7 @@ export const usePlans = (locationId: string) =>
  * bookings (an invoice or a void changes whether a booking is billed). Every action that moves money refreshes all of them,
  * so no screen is left showing an old figure.
  */
-export const FINANCE_KEYS = ['reports', 'dashboard', 'invoices', 'invoice', 'payments', 'expenses', 'members', 'member', 'contracts', 'summary', 'bookings'];
+export const FINANCE_KEYS = ['reports', 'dashboard', 'invoices', 'invoice', 'payments', 'expenses', 'members', 'member', 'contracts', 'summary', 'bookings', 'cheques'];
 
 /** Invalidate every cached query whose first key segment is listed. */
 export function useRefresh() {

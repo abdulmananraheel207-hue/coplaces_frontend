@@ -5,9 +5,11 @@ import { Download } from 'lucide-react';
 import { api } from '../../api';
 import { useLocation } from '../../auth';
 import { Button, Empty, ErrorNote, Field, Input, Loading, Select } from '../../components/ui';
-import { csvAmount, downloadCsv, METHOD_LABEL, money } from '../../lib/format';
+import { csvAmount, downloadCsv, METHOD_LABEL, money, MONEY_STATUS_LABEL } from '../../lib/format';
+import { ChequeActions, ChequeChip } from '../../components/ChequeActions';
 import { fmtDate, localDateOf, todayIn } from '../../lib/time';
-import type { PaymentRow } from '../../types';
+import type { PaymentRow } from '../../types';
+
 import { qd } from '../../lib/queryDefs';
 
 export default function Payments() {
@@ -19,7 +21,9 @@ export default function Payments() {
 
   const list = useQuery(qd.payments(loc.id, from, to, method));
   const rows = list.data ?? [];
-  const total = rows.reduce((s, p) => s + p.amountCents, 0);
+  // Only money that arrived counts: a cheque waiting to clear, or one that bounced, is listed but not added up.
+  const total = rows.filter((p) => (p.status ?? 'cleared') === 'cleared').reduce((s, p) => s + p.amountCents, 0);
+  const waiting = rows.filter((p) => p.status === 'pending');
 
   return (
     <>
@@ -45,8 +49,8 @@ export default function Payments() {
           disabled={rows.length === 0}
           onClick={() =>
             downloadCsv('payments.csv', [
-              ['Date', 'Invoice', 'Member', 'Method', 'Reference', 'Amount'],
-              ...rows.map((p) => [localDateOf(p.paidAt, loc.timezone), p.invoiceNumber, p.memberName, p.method, p.reference, csvAmount(p.amountCents)]),
+              ['Date', 'Invoice', 'Member', 'Paid by', 'Status', 'Reference', 'Amount'],
+              ...rows.map((p) => [localDateOf(p.paidAt, loc.timezone), p.invoiceNumber, p.memberName, METHOD_LABEL[p.method] ?? p.method, MONEY_STATUS_LABEL[p.status ?? 'cleared'], p.reference, csvAmount(p.amountCents)]),
             ])
           }
         >
@@ -71,6 +75,9 @@ export default function Payments() {
                 <th>Paid by</th>
                 <th>Reference</th>
                 <th className="r">Amount</th>
+                <th className="r">
+                  <span className="sr-only">Cheque</span>
+                </th>
               </tr>
             </thead>
             <tbody>
@@ -87,18 +94,30 @@ export default function Payments() {
                     {METHOD_LABEL[p.method]}
                     {p.reversesPaymentId && <span className="ml-2 rounded bg-plaster px-1.5 py-0.5 text-xs font-semibold">Taken back</span>}
                     {p.reversedAt && !p.reversesPaymentId && <span className="ml-2 rounded bg-plaster px-1.5 py-0.5 text-xs font-semibold text-slate">Later taken back</span>}
+                    {p.method === 'cheque' && !p.reversesPaymentId && (
+                      <span className="ml-2">
+                        <ChequeChip status={p.status ?? 'cleared'} />
+                      </span>
+                    )}
                   </td>
                   <td className="text-slate">{p.reference || '—'}</td>
-                  <td className="r font-semibold">{money(p.amountCents, loc.currency)}</td>
+                  <td className={`r font-semibold ${p.status === 'bounced' ? 'text-slate line-through' : p.status === 'pending' ? 'text-slate' : ''}`}>{money(p.amountCents, loc.currency)}</td>
+                  <td className="r">{p.status === 'pending' && <ChequeActions source="payment" id={p.id} />}</td>
                 </tr>
               ))}
             </tbody>
             <tfoot>
               <tr>
                 <td colSpan={5} className="px-3 py-2.5 text-right text-sm font-semibold">
-                  {rows.length} {rows.length === 1 ? 'payment' : 'payments'}, total
+                  {rows.length} {rows.length === 1 ? 'payment' : 'payments'}, total received
+                  {waiting.length > 0 && (
+                    <span className="block text-xs font-normal text-slate">
+                      Not counted: {waiting.length} {waiting.length === 1 ? 'cheque' : 'cheques'} waiting to clear, {money(waiting.reduce((s, p) => s + p.amountCents, 0), loc.currency)}
+                    </span>
+                  )}
                 </td>
                 <td className="r px-3 py-2.5 font-bold">{money(total, loc.currency)}</td>
+                <td />
               </tr>
             </tfoot>
           </table>

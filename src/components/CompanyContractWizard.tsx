@@ -1,16 +1,18 @@
 import { useState } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { api, errorMessage } from '../api';
-import { useLocation } from '../auth';
+import { useAuth, useLocation } from '../auth';
+import { companyAgreementHtml, printHtml, type CompanyAgreement } from './ContractPrint';
+import { useLogo } from '../lib/logo';
 import { floorLabel } from './space3d/layout';
 import { useToast } from './toast';
-import { Button, ErrorNote, Field, Input, Loading, Segmented, Select, Textarea } from './ui';
+import { Button, ErrorNote, Field, Input, Loading, Modal, MoneyInput, Segmented, Select, Textarea } from './ui';
 import { KIND_LABEL, money, toCents } from '../lib/format';
 import { FINANCE_KEYS, useRefresh } from '../lib/queries';
-import { todayIn } from '../lib/time';
+import { fmtDate, spanText, todayIn } from '../lib/time';
 import type { AvailableSpace } from '../types';
 
-const STEPS = ['Company', 'How long', 'How many people', 'The people', 'Space', 'Price', 'Review'] as const;
+const STEPS = ['Company', 'Duration', 'How many people', 'The people', 'Space', 'Price', 'Review'] as const;
 const DESK_KINDS = ['hot_desk', 'dedicated_desk'];
 
 interface Row {
@@ -28,7 +30,11 @@ export function CompanyContractWizard({ onDone }: { onDone: () => void }) {
   const loc = useLocation();
   const toast = useToast();
   const refresh = useRefresh();
+  const { org } = useAuth();
+  const logo = useLogo();
   const [step, setStep] = useState(0);
+  // The agreement shown before a contract is saved and started, to read through and print.
+  const [agreeing, setAgreeing] = useState(false);
   const [co, setCo] = useState({ name: '', email: '', phone: '' });
   const [dates, setDates] = useState({ start: todayIn(loc.timezone), end: '' });
   const [count, setCount] = useState('1');
@@ -109,6 +115,32 @@ export function CompanyContractWizard({ onDone }: { onDone: () => void }) {
     },
   });
 
+  const duration = dates.end ? spanText(dates.start, dates.end) : null;
+  const agreement: CompanyAgreement | null = quote.data
+    ? {
+        provider: org?.name ?? loc.name,
+        logo,
+        preparedOn: todayIn(loc.timezone),
+        place: loc,
+        company: co,
+        start: dates.start,
+        end: dates.end || null,
+        duration,
+        people: people.map((p) => {
+          const d = all.find((x) => x.id === p.desk);
+          return { name: p.name, email: p.email, phone: p.phone, seat: d ? `Own ${KIND_LABEL[d.kind].toLowerCase()}: ${d.name}` : 'Shared space' };
+        }),
+        sharedSpaces: all.filter((x) => spaceIds.includes(x.id)).map((x) => x.name),
+        pricing: { mode: price.mode, perMemberCents: per ?? 0, fixedCents: fix ?? 0, extraCents: ext ?? 0 },
+        lines: quote.data.lines,
+        monthlyCents: quote.data.totalCents,
+        advanceCents: adv ?? 0,
+        depositCents: dep ?? 0,
+        notes: price.notes,
+      }
+    : null;
+  const html = agreement ? companyAgreementHtml(agreement) : '';
+
   const taken = (i: number) => new Set([...people.filter((_, j) => j !== i).map((p) => p.desk), ...spaceIds]);
   const toggleSpace = (id: string) => setSpaceIds((cur) => (cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id]));
   const last = step === STEPS.length - 1;
@@ -147,6 +179,19 @@ export function CompanyContractWizard({ onDone }: { onDone: () => void }) {
           <Field label="Ends" hint="Leave empty if it has no end date.">
             <Input type="date" min={dates.start} value={dates.end} onChange={(e) => setDates({ ...dates, end: e.target.value })} />
           </Field>
+          <p role="status" className={`rounded-lg px-3 py-2 text-sm sm:col-span-2 ${dates.end && !duration ? 'bg-busy-wash text-busy' : 'bg-plaster'}`}>
+            {!dates.start
+              ? 'Choose when it starts.'
+              : !dates.end
+                ? `Starts ${fmtDate(dates.start)} with no end date: it runs until you end it.`
+                : duration
+                  ? (
+                      <>
+                        Duration: <strong>{duration}</strong>, {fmtDate(dates.start)} to {fmtDate(dates.end)}, both days included.
+                      </>
+                    )
+                  : 'The end date is before the start date.'}
+          </p>
         </div>
       )}
 
@@ -259,26 +304,26 @@ export function CompanyContractWizard({ onDone }: { onDone: () => void }) {
           <div className="grid gap-3 sm:grid-cols-2">
             {price.mode === 'per_member' ? (
               <Field label={`Price per member, per month (${loc.currency})`}>
-                <Input inputMode="decimal" value={price.per} onChange={(e) => setP('per', e.target.value)} />
+                <MoneyInput placeholder="0" value={price.per} onValue={(v) => setP('per', v)} />
               </Field>
             ) : (
               <>
                 <Field label={`Price for the space, per month (${loc.currency})`}>
-                  <Input inputMode="decimal" value={price.fixed} onChange={(e) => setP('fixed', e.target.value)} />
+                  <MoneyInput placeholder="0" value={price.fixed} onValue={(v) => setP('fixed', v)} />
                 </Field>
                 <Field label={`Price per member with their own desk (${loc.currency})`} hint="Only used for people who have a desk of their own.">
-                  <Input inputMode="decimal" value={price.per} onChange={(e) => setP('per', e.target.value)} />
+                  <MoneyInput placeholder="0" value={price.per} onValue={(v) => setP('per', v)} />
                 </Field>
               </>
             )}
             <Field label={`Extra person, per month (${loc.currency})`} hint="Charged for each person the shared space has no seat for.">
-              <Input inputMode="decimal" value={price.extra} onChange={(e) => setP('extra', e.target.value)} />
+              <MoneyInput placeholder="0" value={price.extra} onValue={(v) => setP('extra', v)} />
             </Field>
             <Field label={`Advance (${loc.currency})`} hint="Rent taken up front. Optional.">
-              <Input inputMode="decimal" value={price.advance} onChange={(e) => setP('advance', e.target.value)} />
+              <MoneyInput placeholder="0" value={price.advance} onValue={(v) => setP('advance', v)} />
             </Field>
             <Field label={`Security deposit (${loc.currency})`} hint="Held and given back at the end. Optional.">
-              <Input inputMode="decimal" value={price.deposit} onChange={(e) => setP('deposit', e.target.value)} />
+              <MoneyInput placeholder="0" value={price.deposit} onValue={(v) => setP('deposit', v)} />
             </Field>
           </div>
         </div>
@@ -290,7 +335,10 @@ export function CompanyContractWizard({ onDone }: { onDone: () => void }) {
             <dt className="text-slate">Company</dt>
             <dd className="font-semibold">{co.name}{co.email || co.phone ? ` · ${[co.email, co.phone].filter(Boolean).join(' · ')}` : ''}</dd>
             <dt className="text-slate">Period</dt>
-            <dd>{dates.start} to {dates.end || 'no end date'}</dd>
+            <dd>
+              {fmtDate(dates.start)} to {dates.end ? fmtDate(dates.end) : 'no end date'}
+              {duration && <span className="text-slate"> ({duration})</span>}
+            </dd>
             <dt className="text-slate">People</dt>
             <dd>{people.length} ({people.filter((p) => p.desk).length} with their own desk)</dd>
             <dt className="text-slate">Shared space</dt>
@@ -332,7 +380,7 @@ export function CompanyContractWizard({ onDone }: { onDone: () => void }) {
             <Button disabled={save.isPending} onClick={() => save.mutate(false)}>
               Save as draft
             </Button>
-            <Button variant="primary" disabled={save.isPending} onClick={() => save.mutate(true)}>
+            <Button variant="primary" disabled={save.isPending || !agreement} onClick={() => setAgreeing(true)}>
               Save and start now
             </Button>
           </span>
@@ -342,6 +390,25 @@ export function CompanyContractWizard({ onDone }: { onDone: () => void }) {
           </Button>
         )}
       </div>
+
+      <Modal open={agreeing} onClose={() => setAgreeing(false)} title="The agreement" xwide>
+        {agreeing && agreement && (
+          <div className="space-y-4">
+            <p className="text-sm text-slate">Read it through with {co.name}. Print it to sign, then start the contract. Nothing is saved until you press Agree and start.</p>
+            <iframe title={`Agreement with ${co.name}`} srcDoc={html} sandbox="" className="h-[60vh] w-full rounded-lg border border-line bg-white" />
+            {save.error && <ErrorNote error={new Error(errorMessage(save.error))} />}
+            <div className="flex flex-wrap justify-between gap-2">
+              <Button onClick={() => setAgreeing(false)}>Back to edit</Button>
+              <span className="flex flex-wrap gap-2">
+                <Button onClick={() => printHtml(companyAgreementHtml(agreement, { autoPrint: true })) || toast.error('Allow pop-ups for this site to print the agreement')}>Print agreement</Button>
+                <Button variant="primary" disabled={save.isPending} onClick={() => save.mutate(true)}>
+                  Agree and start
+                </Button>
+              </span>
+            </div>
+          </div>
+        )}
+      </Modal>
     </div>
   );
 }
