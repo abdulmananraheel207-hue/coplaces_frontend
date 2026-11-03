@@ -4,6 +4,7 @@ import type { ResourceKind } from '../../types';
 import { Boundary } from './SpaceViewer';
 import { LabelOverlay, STAGE_BG } from './Labels';
 import { labelSpecs, layoutFloors, stackPlan } from './layout';
+import { useIdleVisible } from '../../lib/useIdleVisible';
 
 const Scene = lazy(() => import('./Scene'));
 
@@ -81,13 +82,16 @@ export function Showcase({
   // Fill more of the frame than the app's own view does.
   const fit = useMemo(() => ({ ...plan.bounds, radius: plan.bounds.radius * 0.9 }), [plan]);
   const overlay = useRef<HTMLDivElement>(null);
+  const box = useRef<HTMLDivElement>(null);
+  // The sign-in form comes first; the model is built once the page has drawn and the browser is idle.
+  const start = useIdleVisible(box);
 
   return (
-    <div className={`on-ink isolate overflow-hidden ${className}`} style={bare ? undefined : { background: STAGE_BG }} aria-hidden>
+    <div ref={box} className={`on-ink isolate overflow-hidden ${className}`} style={bare ? undefined : { background: STAGE_BG }} aria-hidden>
       <div className={`absolute ${canvasClass}`}>
         <Boundary fallback={null}>
           <Suspense fallback={null}>
-            <Scene plan={plan} labels={labels} overlay={overlay} selectedId={null} onSelect={noop} onHover={noop} resetKey={0} fit={fit} dpr={[2, 3]} spin />
+            {start && <Scene plan={plan} labels={labels} overlay={overlay} selectedId={null} onSelect={noop} onHover={noop} resetKey={0} fit={fit} dpr={[2, 3]} spin />}
           </Suspense>
         </Boundary>
         <LabelOverlay labels={labels} selectedId={null} hoverId={hoverId} overlay={overlay} />

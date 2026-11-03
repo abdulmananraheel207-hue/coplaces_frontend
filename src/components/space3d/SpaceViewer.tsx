@@ -6,17 +6,29 @@ import { ItemDetail } from '../ItemDetail';
 import type { FloorObject } from '../../types';
 import { floorLabel, floorMark, labelSpecs, layoutFloors, stackPlan } from './layout';
 import { GLASS, LabelOverlay, STAGE_BG } from './Labels';
+import { useIdleVisible } from '../../lib/useIdleVisible';
 
 // The three.js code is a separate chunk so pages without a 3D view stay light.
 const Scene = lazy(() => import('./Scene'));
 
+let webgl: boolean | undefined;
+
+/**
+ * Whether this browser can draw WebGL. Asked once per visit: each probe makes a WebGL context, browsers allow only a
+ * handful at a time and drop the oldest past that, so probing on every page would in time kill the real 3D view.
+ * The probe's own context is released straight away.
+ */
 export function webglAvailable() {
+  if (webgl !== undefined) return webgl;
   try {
     const c = document.createElement('canvas');
-    return !!(c.getContext('webgl2') || c.getContext('webgl'));
+    const gl = (c.getContext('webgl2') || c.getContext('webgl')) as WebGLRenderingContext | null;
+    webgl = !!gl;
+    gl?.getExtension('WEBGL_lose_context')?.loseContext();
   } catch {
-    return false;
+    webgl = false;
   }
+  return webgl;
 }
 
 export class Boundary extends Component<{ children: ReactNode; fallback: ReactNode }, { failed: boolean }> {
@@ -54,6 +66,9 @@ export function SpaceViewer({
   const [resetKey, setResetKey] = useState(0);
   const [hoverId, setHoverId] = useState<string | null>(null);
   const overlay = useRef<HTMLDivElement>(null);
+  const stage = useRef<HTMLDivElement>(null);
+  // The 3D engine is large: build the scene once the board is on screen and the rest of the page has drawn.
+  const start = useIdleVisible(stage);
   const multi = floors.length > 1;
   const focus = only === undefined ? (floors[0]?.floor ?? null) : only;
   const plan = useMemo(() => stackPlan(floors, multi ? focus : null), [floors, focus, multi]);
@@ -71,7 +86,7 @@ export function SpaceViewer({
 
   return (
     <div>
-      <div role="group" aria-label="3D floor view" className={`on-ink relative isolate overflow-hidden rounded-2xl shadow-[var(--shadow-card)] ${heightClass}`} style={{ background: STAGE_BG }}>
+      <div ref={stage} role="group" aria-label="3D floor view" className={`on-ink relative isolate overflow-hidden rounded-2xl shadow-[var(--shadow-card)] ${heightClass}`} style={{ background: STAGE_BG }}>
         {mark && (
           <p aria-hidden className="display pointer-events-none absolute right-5 bottom-0 -z-10 text-[11rem] leading-[0.8] font-black tracking-tighter text-white/[0.06] select-none sm:text-[16rem]">
             {mark}
@@ -80,9 +95,13 @@ export function SpaceViewer({
 
         <div role="img" aria-label={`3D model of ${items.length} spaces. The list view has the same information.`} className="absolute inset-0">
           <Boundary fallback={fallback}>
-            <Suspense fallback={<p role="status" className="grid h-full place-items-center text-sm text-white/70">Loading 3D view…</p>}>
-              <Scene plan={plan} labels={labels} overlay={overlay} selectedId={selectedId} onSelect={onSelect} onHover={setHoverId} resetKey={resetKey} heat={heat} />
-            </Suspense>
+            {start ? (
+              <Suspense fallback={<p role="status" className="grid h-full place-items-center text-sm text-white/70">Loading 3D view…</p>}>
+                <Scene plan={plan} labels={labels} overlay={overlay} selectedId={selectedId} onSelect={onSelect} onHover={setHoverId} resetKey={resetKey} heat={heat} />
+              </Suspense>
+            ) : (
+              <p role="status" className="grid h-full place-items-center text-sm text-white/70">Loading 3D view…</p>
+            )}
           </Boundary>
           <LabelOverlay labels={labels} selectedId={selectedId} hoverId={hoverId} overlay={overlay} />
         </div>
