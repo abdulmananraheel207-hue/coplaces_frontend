@@ -6,7 +6,7 @@
 >
 > **Companion file:** the backend repository has its own `COPLACES_KNOWLEDGE.md`. Its **§9 "Finance rules as they behave today"** is the reference for how the server calculates money (it lists known server issues as **H1–H6**). Where both files describe the same rule, they must agree; this file points to backend §9 instead of repeating it.
 >
-> Last updated: 2026-11-03 (branch `finance-overhaul`, after the Stage 0 and 0b finance fixes).
+> Last updated: 2026-11-04 (branch `finance-overhaul`: Stage 0 and 0b finance fixes, finance charts, speed work). Checked against the backend's `ahmed-dev` branch (the same commit as backend `main`).
 
 ---
 
@@ -145,7 +145,7 @@ src/
 
 ### Boot sequence (`main.tsx`)
 
-`StrictMode` → `GlassFX` (animated backdrop) → `QueryClientProvider` → `BrowserRouter` → `AuthProvider` → `ToastProvider` → `App`.
+`StrictMode` → `GlassFX` (still backdrop) → `QueryClientProvider` → `BrowserRouter` → `AuthProvider` → `ToastProvider` → `App`.
 
 QueryClient defaults: `staleTime: 15s`, `refetchOnWindowFocus: true`, `retry: 1`.
 
@@ -188,9 +188,15 @@ The same URL (for example `/`) shows different pages depending on role.
 - After a mutation, pages call `useRefresh()('members', 'dashboard', …)`, which invalidates every query whose first key segment matches.
 - Polling: dashboard and schedule every 60s; people in the building every 30s; room requests every 30s; device list and commands every 15s; today's device punches every 15s; staff attendance today every 30s; open-issue badge every 60s.
 
-### Code splitting
+### Code splitting and speed
 
-Lazy-loaded so the main bundle stays small: `FinanceOverview`, `ProfitLoss` (charts), `FloorPlanEditor` (whole 3D editor), the OCR engine, and the PDF reader.
+- **Every page loads on demand** (`src/pageRegistry.ts`): `App.tsx` imports only the sign-in page eagerly. Once the session says who is signed in, `preloadPages(role)` fetches every page that person can reach, one at a time while the browser is idle, so later navigation never waits for a download. A test checks that each role's preload list covers its routes.
+- The shell and the finance tabs stay on screen while a page's code arrives (`Suspense` inside `PageTransition` and `FinanceLayout`); React keeps the previous page visible during a navigation.
+- **three.js is never in the first download.** Anything outside the 3D code that needs `reducedMotion` imports it from `lib/motion.ts`, never from `space3d/three-kit.ts` (which imports all of three.js).
+- The 3D scene is built only once its view is on screen and the browser is idle (`lib/useIdleVisible.ts`); a view hidden by CSS is never built. `webglAvailable()` probes once per visit and releases its test context.
+- Also loaded on demand: `FloorPlanEditor`, the OCR engine and the PDF reader.
+- Main bundle (2026-11-04): 300 KB (94 KB gzipped), down from 1,012 KB (277 KB) before the speed work.
+- Motion: pages fade in over 180 ms (40 ms offset at most), no per-row stagger, no animated blur filter. The glass backdrop is still (no drift, no pointer effects), because every frosted panel re-blurs whatever moves behind it.
 
 ---
 
@@ -613,9 +619,14 @@ Files: `pages/staff/Finance.tsx` (layout, tabs, period, report hook), `FinanceOv
 - **Amenities to collect**: who owes what, with **Mark collected** (needs `front_desk` or `invoices`).
 - **Advances and security deposits**: deposits held ("Belongs to members, not income"), received, returned, advances received, deposits kept, a movement table (dates on the location's day), and a CSV export.
 - An overdue invoices alert (only with `invoicing`). Its "See the invoices" link shows only to people who may open invoices.
-- **Money in and out, month by month** (SVG grouped bar chart from `report.monthly`).
-- Bars for: where the money came from (income kinds), where it went (expense categories), how members paid (methods; invoice payments only).
-- **Who still owes you**: receivables aging (Not yet due / 1–30 / 31–60 / over 60 days late), as of now, only with `invoicing`.
+- **Charts** (`components/charts`, data from `lib/financeCharts.ts`; every chart has a legend where it has two or more series, a focusable tooltip, and **Show as table**, which is also what prints):
+  - **Money in and out, month by month**: grouped columns with the net result as a line on the same axis (`moneyByMonth`, from `report.monthly`; on `ahmed-dev` each month's money in equals the P&L income for that month).
+  - **Invoiced and received, month by month** (only with `invoicing`): invoiced by issue date against money in by arrival date.
+  - **Where the money came from, month by month**: income kinds stacked (`incomeMix`, from the P&L), each kind always the same colour.
+  - **Where it went** and **How members paid** (invoice payments only): ranked bar lists with amount and share.
+  - **Invoices issued in this period** (invoices area only): paid, to pay and overdue as one segmented bar, with "Of X invoiced, Y has been paid (Z%)". Built from `GET /invoices` (the newest 500) and checked against the report's invoiced total; if they differ, a note says the chart may be missing invoices.
+  - **Who still owes you** (only with `invoicing`): the aging buckets as a segmented bar, as of now, and **Largest balances** by member (invoices area only, from `GET /invoices?status=open`, checked against the server's total owed).
+- Colours come from the validated reference palette (dataviz skill; checked against this app's light surface), in a fixed order: money in is always blue, money out orange, net aqua, invoiced yellow. Aging uses a single-hue ordinal ramp; invoice states use the status colours with their words beside them.
 
 **Profit and loss** (`lib/profitLoss.ts` → `buildProfitLoss`)
 - A month-by-month table: income rows by kind, total income, cost rows by category, total costs, net result, and "Profit as a share of income".
@@ -1025,7 +1036,7 @@ Money-related server endpoints this frontend **does not call yet** (listed in ba
 ### UI kit (`components/ui.tsx`)
 `Button` (variants primary / secondary / ghost / danger, `small`), `buttonClass()`, `Field` (label and hint), `Input`, `Select`, `Textarea`, `Modal` (`wide`, `xwide`), `PageHeader` (title, sub, action children), `Section` (title, aside), `Empty` (title, hint, action), `Loading`, `ErrorNote` (optional `onRetry` and `retrying` show a **Try again** button), `ConfirmButton` (asks in place: the question, **Keep** and a Yes button; use it instead of `window.confirm`), `Chip` (tones ok / busy / hold / mine / idle), `Ledger` (label–value rows with tone and note), `Segmented`, `Tabs`, `Avatar`, `initials`.
 
-Other shared components: `toast` (`useToast().ok/.error`), `MemberSelect` (+ `useMembers`), `CredentialsModal`, `CountText` (animated count-up), `Bars` / `CountBars`, `MoneyChart` (SVG), `StatusMark` (accessible status shapes), `Plaque` / `DeskTile`, `Plate` (yellow location code sign), `GlassFX` (animated blueprint backdrop that lights up under the pointer).
+Other shared components: `toast` (`useToast().ok/.error`), `MemberSelect` (+ `useMembers`), `CredentialsModal`, `CountText` (count-up, 400 ms), `CountBars` (platform counts), the finance charts in `components/charts` (`ColumnChart`, `SegmentedBar`, `BarList`, with `ChartFrame`, `Legend`, `Tooltip`, `useWidth` in `Chart.tsx`, colours in `palette.ts`, axis maths in `scale.ts`), `StatusMark` (accessible status shapes), `Plaque` / `DeskTile`, `Plate` (yellow location code sign), `GlassFX` (the still steel-blue backdrop with light pools and a blueprint grid).
 
 ### Formatting (`lib/format.ts`)
 - `money(cents, currency)`: whole amounts show no decimals ("Rs 1,500"); otherwise two. PKR uses the `en-PK` locale (western grouping, "Rs 39,100,812"), everything else `en-US`. An amount that rounds to zero never shows a sign ("Rs 0", never "-Rs 0"; `signDisplay: 'negative'`). Real negatives keep it ("-Rs 1,500").
@@ -1060,7 +1071,7 @@ Time-zone-aware: `todayIn(tz)`, `addDays`, `addMonths`, `toMinutes` / `fromMinut
 
 - **Brand**: ink navy `#14263F` (theme colour, sidebar) and signal yellow `#F6C324` (the location "plate", active nav marker, badges). The favicon is a navy square with a yellow square inside.
 - **Status tones**: ok green `#0f7b5f`, busy brick `#b8381a`, hold amber, mine blue `#2a55c7`, idle grey. Each has a "wash" background.
-- **Surfaces**: translucent frosted glass panels (`plaster`, `mist`, `paper`) over an animated steel-blue backdrop with a blueprint grid.
+- **Surfaces**: translucent frosted glass panels (`plaster`, `mist`, `paper`) over a still steel-blue backdrop with a blueprint grid. Keep the backdrop still: anything moving behind the frosted panels makes the browser re-blur them every frame.
 - **Type**: Archivo (display, `.display`, `.display-sm`), Public Sans (body); base size 15px; `.num` for tabular numbers.
 - **Utility classes**: `.surface`, `.surface-table`, `.tbl` (tables, `.r` = right aligned), `.no-print`, `.on-ink`, `.page-enter`, `.flip`, `.hatch`.
 - **Accessibility**: aria labels throughout, `sr-only` headers, colour is never the only signal, `prefers-reduced-motion` respected, keyboard shortcuts in the editor.
@@ -1083,7 +1094,7 @@ Time-zone-aware: `todayIn(tz)`, `addDays`, `addMonths`, `toMinutes` / `fromMinut
 11. **Demo accounts** appear on the login page in dev only (`import.meta.env.DEV`), all with password `coplaces123`: `admin@coplaces.test` (platform), `owner@nest.test` (Pro), `manager@nest.test`, `frontdesk@nest.test`, `hamza.sheikh@example.pk` (member), `owner@hive.test` (Growth), `owner@workbay.test` (Starter, trial).
 12. **Legacy redirects** exist (`/shifts` → `/plans`, `/money/*` → `/finance`). Do not remove them.
 13. **Legacy data shapes**: shifts without `planId`, shifts with `resourceId`/`kind` instead of `spaceIds`, single-member contracts. Handle them when touching those areas.
-14. **Tests**: Vitest, 18 files and 231 tests. They cover the editor model, import layout, plan vision, permissions, money formatting and `toCents`, CSV safety, time-zone dates, the money-area access rules, the finance refresh guard, the finance period and placeholder behaviour, profit and loss maths, the debounce hook, `ConfirmButton` / `ErrorNote`, the space form sending no prices, the shown hourly price (`rateOf`), and the four price bases (checked against the backend's type when it is next door). Component and hook tests start with `// @vitest-environment jsdom` and use Testing Library; plain helpers run in Node. Run `npm test` and `npm run typecheck` before finishing changes. `npm run build` rewrites the committed `dist/` folder; do not commit that unless asked.
+14. **Tests**: Vitest, 22 files and 268 tests. They cover the editor model, import layout, plan vision, permissions, money formatting and `toCents`, CSV safety, time-zone dates, the money-area access rules, the finance refresh guard, the finance period and placeholder behaviour, profit and loss maths, the debounce hook, `ConfirmButton` / `ErrorNote`, the space form sending no prices, the shown hourly price (`rateOf`), the four price bases (checked against the backend's type when it is next door), the finance chart data and components, the page preload lists, and the 3D deferral. Component and hook tests start with `// @vitest-environment jsdom` and use Testing Library; plain helpers run in Node. Run `npm test` and `npm run typecheck` before finishing changes. `npm run build` rewrites the committed `dist/` folder; do not commit that unless asked.
 15. **Never ship secrets.** `.env` holds only `API_URL`. Production routing is in `vercel.json`.
 16. **Printing** uses `window.print()` or a pop-up window (QR sheet, contract print). Mark the app chrome `.no-print`.
 17. **Confirmations**: destructive actions use inline "Keep / Yes, …" confirmations (`ConfirmButton`). Finance no longer uses `window.confirm`. Seven non-finance places still do (floor plan templates, suspending a tenant, announcements, two on devices, two in maintenance).
@@ -1105,9 +1116,8 @@ From the Stage 0 audit (2026-11-02), still open after the frontend fixes. Where 
 
 **Figures that may not agree across screens**
 - "Collected" on Today and "Money in" on the overview include advances, kept deposits and desk amenity collections. The Payments page total and "How members paid" include invoice payments only. This is by design, but nothing on screen says so yet.
-- The overview chart says "The profit and loss table has the same figures", but the chart reads `monthly` while the table reads `profitLoss`; nothing checks that they match.
+- The overview chart and the P&L read different fields of the report (`monthly` and `profitLoss`). On `ahmed-dev` they are built from the same rows and agree; nothing on the frontend checks it.
 - "Still owed", the aging table and deposits held are **as of now**, while the figures around them are for the chosen period.
-- The `advance` income kind includes member advances, but the frontend labels it "Advance rent from contracts".
 - Collected includes sales tax and there is no tax report.
 
 **Totals worked out in the browser**
