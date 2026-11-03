@@ -188,6 +188,13 @@ The same URL (for example `/`) shows different pages depending on role.
 - After a mutation, pages call `useRefresh()('members', 'dashboard', …)`, which invalidates every query whose first key segment matches.
 - Polling: dashboard and schedule every 60s; people in the building every 30s; room requests every 30s; device list and commands every 15s; today's device punches every 15s; staff attendance today every 30s; open-issue badge every 60s.
 
+### Data fetching ahead
+
+- **One definition per query** (`lib/queryDefs.ts`, the `qd` object): cache key plus fetch, used by the shared hooks in `lib/queries.ts`, by the pages, and by the prefetcher. New queries a page makes as it opens should be added there, so prefetched data lands where the page looks.
+- **Prefetch** (`lib/prefetch.ts`): `pageQueries(path, who)` lists each staff page's opening queries with default filters, only for pages the person may open. Pointing at, focusing or touching a menu link prefetches that page; after sign-in the shell warms `WARM_ORDER` one page at a time in idle moments. Fresh data (60 s, `FRESH_MS`) is never fetched twice.
+- Query defaults (`main.tsx`): fresh for 60 s, kept for 30 minutes; older data shows at once while it refreshes.
+- Why: every backend request waits on database round trips to the cloud database (120-680 ms each measured from a local server). The backend branch `speed-backend` runs the independent reads of the Today figures, finance report, schedule, spaces, member page and member home in parallel (Today 3.3 s to 0.85 s and finance report 2.6 s to 0.53 s at 150 ms per call).
+
 ### Code splitting and speed
 
 - **Every page loads on demand** (`src/pageRegistry.ts`): `App.tsx` imports only the sign-in page eagerly. Once the session says who is signed in, `preloadPages(role)` fetches every page that person can reach, one at a time while the browser is idle, so later navigation never waits for a download. A test checks that each role's preload list covers its routes.
