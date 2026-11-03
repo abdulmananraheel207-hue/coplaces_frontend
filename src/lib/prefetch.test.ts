@@ -49,11 +49,12 @@ describe('which data is fetched ahead for a page', () => {
     expect(keys('/spaces', owner, []).some((k) => k.startsWith('["floor-objects"'))).toBe(false);
   });
 
-  it('fetches the finance overview for the default period, with the invoice lists for those who may read invoices', () => {
+  it('fetches the finance overview and its charts for the default period, not the invoice lists', () => {
     const k = keys('/finance/overview', person('owner', PERMISSION_KEYS));
     expect(k[0]).toMatch(/^\["reports","L1","\d{4}-\d{2}-01","\d{4}-\d{2}-\d{2}"\]$/);
-    expect(k).toContain(JSON.stringify(['invoices', 'L1', 'overview', 'all']));
-    expect(keys('/finance', person('staff', ['reports']))).toHaveLength(1);
+    expect(k[1]).toMatch(/^\["reports","L1","\d{4}-\d{2}-01","\d{4}-\d{2}-\d{2}","charts"\]$/);
+    expect(k.some((x) => x.startsWith('["invoices"'))).toBe(false);
+    expect(keys('/finance', person('staff', ['reports']))).toHaveLength(2);
   });
 
   it('fetches the booking list for today and the next 30 days, as the Bookings page opens on', () => {

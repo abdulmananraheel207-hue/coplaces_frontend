@@ -1,13 +1,12 @@
 import { Suspense, useCallback } from 'react';
 import { Navigate, Outlet, useSearchParams } from 'react-router';
 import { useQuery } from '@tanstack/react-query';
-import { api } from '../../api';
 import { useAuth, useCanUse, useLocation } from '../../auth';
 import { financeHome } from '../../lib/access';
-import { DEFAULT_PERIOD, keepWithinLocation, parsePeriod, periodRange, withPeriod, type Period } from '../../lib/financePeriod';
+import { DEFAULT_PERIOD, keepWithinLocation, parsePeriod, withPeriod, type Period } from '../../lib/financePeriod';
 import { Loading, PageHeader, Segmented, Tabs } from '../../components/ui';
 import { todayIn } from '../../lib/time';
-import type { FinanceReport } from '../../types';
+import type { FinanceReport } from '../../types';
 import { qd } from '../../lib/queryDefs';
 
 export { PERIOD_WORD } from '../../lib/financePeriod';
@@ -47,6 +46,16 @@ export function useFinanceReport(months: Period) {
   return useQuery<PeriodReport>({
     ...qd.financeReport(loc.id, todayIn(loc.timezone), months),
     placeholderData: keepWithinLocation(loc.id),
+  });
+}
+
+/** The finance charts for the same period as the report: month-end balances, invoices by status, debtors, income by plan and space. */
+export function useFinanceCharts(months: Period, enabled = true) {
+  const loc = useLocation();
+  return useQuery({
+    ...qd.financeCharts(loc.id, todayIn(loc.timezone), months),
+    placeholderData: keepWithinLocation(loc.id),
+    enabled,
   });
 }
 

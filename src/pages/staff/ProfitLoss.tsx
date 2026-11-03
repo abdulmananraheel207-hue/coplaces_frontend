@@ -19,6 +19,8 @@ export default function ProfitLoss() {
   const pl = buildProfitLoss(r.profitLoss);
   const n = pl.months.length;
   const { incomeBy, costBy, netBy, incomeTotal, costTotal, netTotal } = pl;
+  // The tax inside the payments, month by month, shown under income: it is not income (the server already left it out of the rows).
+  const tax = r.profitLoss.tax && r.profitLoss.tax.byMonth.length === n ? r.profitLoss.tax : null;
   const sumRow = (byMonth: number[]) => byMonth.reduce((a, b) => a + b, 0);
   const marginBy = pl.months.map((_, i) => marginText(netBy[i]!, incomeBy[i]!));
 
@@ -36,6 +38,7 @@ export default function ProfitLoss() {
       ['Income'],
       ...incomeRows.map((x) => [x.label, ...x.byMonth.map(csvAmount), csvAmount(x.total)]),
       ['Total income', ...incomeBy.map(csvAmount), csvAmount(incomeTotal)],
+      ...(tax ? [['Tax collected (not income)', ...tax.byMonth.map(csvAmount), csvAmount(tax.totalCents)]] : []),
       ['Costs'],
       ...costRows.map((x) => [x.label, ...x.byMonth.map(csvAmount), csvAmount(x.total)]),
       ['Total costs', ...costBy.map(csvAmount), csvAmount(costTotal)],
@@ -93,6 +96,20 @@ export default function ProfitLoss() {
               ))}
               {n > 1 && <td className="r">{moneyWhole(incomeTotal, cur)}</td>}
             </tr>
+            {tax && tax.totalCents !== 0 && (
+              <tr className="text-slate">
+                <td>
+                  Tax collected
+                  <span className="block text-xs">Owed to the government, so not income. Already taken out above.</span>
+                </td>
+                {tax.byMonth.map((v, i) => (
+                  <td key={i} className="r">
+                    {cell(v)}
+                  </td>
+                ))}
+                {n > 1 && <td className="r">{moneyWhole(tax.totalCents, cur)}</td>}
+              </tr>
+            )}
 
             <tr>
               <td colSpan={n + 2} className={heading}>
@@ -154,7 +171,7 @@ export default function ProfitLoss() {
         </p>
       )}
       <p className="text-sm text-slate">
-        Income is counted in the month a payment arrives, and costs in the month they were spent. Figures in brackets are a loss. Invoices not yet paid are not income yet; see the overview for what is still owed.
+        Income is counted in the month a payment arrives, before tax, and costs in the month they were spent. Figures in brackets are a loss. Invoices not yet paid are not income yet; see the overview for what is still owed.
       </p>
     </div>
   );

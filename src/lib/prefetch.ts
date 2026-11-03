@@ -52,7 +52,7 @@ export function pageQueries(path: string, { loc, user, features }: Who): Def[] {
       return [qd.resources(id), qd.schedule(id, today), qd.floors(id), qd.assignments(id), ...(has('floor_3d') ? [qd.floorObjects(id)] : [])];
     case '/finance': {
       if (canUse(user, features, 'reports')) {
-        return [qd.financeReport(id, today, DEFAULT_PERIOD), ...(canUse(user, features, 'invoices') ? [qd.overviewInvoices(id, 'all'), qd.overviewInvoices(id, 'open')] : [])];
+        return [qd.financeReport(id, today, DEFAULT_PERIOD), qd.financeCharts(id, today, DEFAULT_PERIOD)];
       }
       if (canUse(user, features, 'invoices')) return [qd.invoices(id, '', '')];
       if (canUse(user, features, 'expenses')) return [qd.expenses(id, today.slice(0, 7), '')];

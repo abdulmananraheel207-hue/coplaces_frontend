@@ -113,7 +113,7 @@ function ContractForm({ initial, onDone }: { initial?: Contract; onDone: () => v
   );
 }
 
-const ENTRY_WORD = { received: 'Security deposit received', refunded: 'Security deposit returned', kept: 'Security deposit kept by us', advance: 'Advance received' } as const;
+const ENTRY_WORD = { received: 'Security deposit received', refunded: 'Security deposit returned', kept: 'Security deposit kept by us', advance: 'Advance received', advance_refund: 'Advance given back' } as const;
 
 /** How the money moved, so it can be matched against the till or the bank. */
 function MovementFields({ method, setMethod, reference, setReference, noMoney }: { method: PaymentMethod; setMethod: (m: PaymentMethod) => void; reference: string; setReference: (r: string) => void; noMoney?: boolean }) {

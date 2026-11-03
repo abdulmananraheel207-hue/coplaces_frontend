@@ -7,6 +7,7 @@ import type {
   Contract,
   Dashboard,
   Expense,
+  FinanceCharts,
   FinanceReport,
   FloorObject,
   Holiday,
@@ -55,16 +56,20 @@ export const qd = {
   }),
   pendingRequests: (loc: string) => ({ queryKey: ['requests', loc, 'pending'], queryFn: () => api.get<RoomRequest[]>('/requests', { locationId: loc, status: 'pending' }) }),
   invoices: (loc: string, status: string, search: string) => ({ queryKey: ['invoices', loc, status, search], queryFn: () => api.get<InvoiceRow[]>('/invoices', { locationId: loc, status, q: search }) }),
-  overviewInvoices: (loc: string, which: 'all' | 'open') => ({
-    queryKey: ['invoices', loc, 'overview', which],
-    queryFn: () => api.get<InvoiceRow[]>('/invoices', which === 'open' ? { locationId: loc, status: 'open' } : { locationId: loc }),
-  }),
   /** The finance report for a period, remembering which period it is for. */
   financeReport: (loc: string, today: string, months: Period) => {
     const { from, to } = periodRange(months, today);
     return {
       queryKey: ['reports', loc, from, to],
       queryFn: async (): Promise<FinanceReport & { months: Period }> => ({ ...(await api.get<FinanceReport>('/reports/finance', { locationId: loc, from, to })), months }),
+    };
+  },
+  /** The finance charts (month-end balances, invoices by status, debtors, income mix) for the same period as the report. */
+  financeCharts: (loc: string, today: string, months: Period) => {
+    const { from, to } = periodRange(months, today);
+    return {
+      queryKey: ['reports', loc, from, to, 'charts'],
+      queryFn: () => api.get<FinanceCharts>('/reports/finance/charts', { locationId: loc, from, to }),
     };
   },
   /** Expenses of one month (YYYY-MM), or of every month when it is empty, optionally of one category. */

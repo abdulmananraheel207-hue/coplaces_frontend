@@ -5,7 +5,7 @@ import type { Contract, DepositEntry, Location } from '../types';
 
 const escape = (s: string) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]!);
 
-const ENTRY_WORD = { received: 'Security deposit received', refunded: 'Security deposit returned', kept: 'Security deposit kept by us', advance: 'Advance received' } as const;
+const ENTRY_WORD = { received: 'Security deposit received', refunded: 'Security deposit returned', kept: 'Security deposit kept by us', advance: 'Advance received', advance_refund: 'Advance given back' } as const;
 
 /** Opens the contract as a clean page in a new window and prints it, with the deposit history and places to sign. */
 export async function printContract(c: Contract, place: Location, company: string) {
@@ -65,4 +65,4 @@ export async function printContract(c: Contract, place: Location, company: strin
 
 /** Plain-number export of the advance and security deposit entries, for a spreadsheet. */
 export const depositRows = (entries: { occurredAt: string; memberName: string; resourceName: string | null; kind: string; method: string | null; reference: string; amountCents: number }[], timezone: string) =>
-  entries.map((e) => [localDateOf(e.occurredAt, timezone), e.memberName, e.resourceName ?? '', e.kind === 'advance' ? 'Advance received' : `Security deposit ${e.kind}`, e.method ? (METHOD_LABEL[e.method as keyof typeof METHOD_LABEL] ?? titleCase(e.method)) : '', e.reference, csvAmount(e.amountCents)]);
+  entries.map((e) => [localDateOf(e.occurredAt, timezone), e.memberName, e.resourceName ?? '', e.kind === 'advance' ? 'Advance received' : e.kind === 'advance_refund' ? 'Advance given back' : `Security deposit ${e.kind}`, e.method ? (METHOD_LABEL[e.method as keyof typeof METHOD_LABEL] ?? titleCase(e.method)) : '', e.reference, csvAmount(e.amountCents)]);

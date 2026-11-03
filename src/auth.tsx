@@ -25,6 +25,21 @@ interface AuthContextValue {
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
+
+declare global {
+  interface Window {
+    /** Started by public/session.js before the app loaded: the session, null when signed out, or null itself when it could not tell. */
+    __cpSession?: Promise<{ session: Session | null } | null>;
+  }
+}
+
+/** The answer public/session.js already asked for, once; later checks (and anything unexpected) go to the server as usual. */
+async function takeEarlySession(): Promise<{ session: Session | null } | null> {
+  const early = typeof window !== 'undefined' ? window.__cpSession : undefined;
+  if (!early) return null;
+  window.__cpSession = undefined;
+  return early.catch(() => null);
+}
 const LOCATION_KEY = 'coplaces.location';
 
 function readStored() {
@@ -40,6 +55,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const me = useQuery({
     queryKey: ['session'],
     queryFn: async () => {
+      const early = await takeEarlySession();
+      if (early) return early.session;
       try {
         return await api.get<Session>('/auth/me');
       } catch (e) {

@@ -140,7 +140,7 @@ export interface MemberDetail extends Omit<MemberRow, 'planName' | 'checkedIn'> 
   plan: Plan | null;
   shifts: { id: string; name: string; startTime: string; endTime: string; priceCents: number | null }[];
   /** Every movement of their advance and security deposit, oldest first. */
-  moneyEntries: { id: string; kind: 'advance' | 'received' | 'refunded' | 'kept'; amountCents: number; method: PaymentMethod | null; reference: string; occurredAt: string }[];
+  moneyEntries: { id: string; kind: 'advance' | 'advance_refund' | 'received' | 'refunded' | 'kept'; amountCents: number; method: PaymentMethod | null; reference: string; occurredAt: string }[];
   desks: { id: string; name: string; kind: ResourceKind }[];
   /** The spaces they get free credit hours on, with how many a month on each. Two credit hours are one hour. */
   creditResources: { id: string; name: string; credits: number }[];
@@ -331,11 +331,41 @@ export interface InvoiceItem {
 export interface Payment {
   id: string;
   invoiceId: string;
+  /** Negative for a reversal: payments are never deleted, a reversal takes one back. */
   amountCents: number;
   method: PaymentMethod;
   paidAt: string;
   reference: string;
   notes: string;
+  /** Set on a reversal: the payment it takes back. */
+  reversesPaymentId?: string | null;
+  /** Set on a payment that was taken back. */
+  reversedAt?: string | null;
+}
+
+/** GET /reports/finance/charts: month by month figures and breakdowns, on the same definitions as the finance report. */
+export interface FinanceCharts {
+  from: string;
+  to: string;
+  currency: string;
+  months: {
+    month: string;
+    billedCents: number;
+    collectedCents: number;
+    collectionRate: number | null;
+    taxCollectedCents: number;
+    expensesCents: number;
+    incomeByCategory: Record<string, number>;
+    expensesByCategory: Record<string, number>;
+    moneyInByMethod: Record<string, number>;
+    outstandingEndCents: number;
+    overdueEndCents: number;
+    depositsHeldEndCents: number;
+  }[];
+  invoicesByStatus: Record<'open' | 'paid' | 'void' | 'overdue', { count: number; totalCents: number; owedCents: number }>;
+  topDebtors: { memberId: string; name: string; company: string; owedCents: number; overdueCents: number; oldestDue: string; invoices: number }[];
+  incomeBySpace: { resourceId: string; name: string; kind: string; amountCents: number }[];
+  incomeByPlan: { planId: string; name: string; amountCents: number }[];
 }
 
 export interface InvoiceDetail extends InvoiceRow {
@@ -410,14 +440,27 @@ export interface FinanceReport {
   from: string;
   to: string;
   currency: string;
-  totals: { invoicedCents: number; collectedCents: number; expensesCents: number; netCents: number };
+  /**
+   * Money in (`collectedCents`) is cash, tax included. `taxCollectedCents` is the tax inside the payments, owed to the government;
+   * `incomeCents` is money in less that tax, and `profitCents` is income less expenses: what the profit and loss shows. `netCents`
+   * is the cash result (money in less money out). `invoicedCents` is what was billed, including the part an advance paid.
+   */
+  totals: { invoicedCents: number; collectedCents: number; expensesCents: number; netCents: number; taxCollectedCents?: number; incomeCents?: number; profitCents?: number };
   previous: { from: string; to: string; collectedCents: number; expensesCents: number; netCents: number };
   incomeByKind: { kind: IncomeKind; amountCents: number }[];
   profitLoss: {
     months: string[];
     income: { kind: IncomeKind; byMonth: number[]; totalCents: number }[];
+    /** The tax inside the payments each month: not income, owed to the government. */
+    tax?: { byMonth: number[]; totalCents: number };
     costs: { category: string; byMonth: number[]; totalCents: number }[];
   };
+  /** Income before tax by what was sold: plan, rent, booking, amenity, manual, advance, kept_deposit. */
+  incomeByCategory?: { category: string; amountCents: number }[];
+  /** The day aging and deposits held are worked out for: the report's end date. */
+  asOf?: string;
+  /** Advances received and credit given that no invoice has used yet. */
+  unapplied?: { advancesCents: number; creditsCents: number };
   monthly: { month: string; collectedCents: number; invoicedCents: number; expensesCents: number; netCents: number }[];
   expensesByCategory: { category: string; amountCents: number }[];
   paymentsByMethod: { method: string; amountCents: number }[];
@@ -681,7 +724,7 @@ export interface AvailableSpace {
 export interface DepositEntry {
   id: string;
   contractId: string;
-  kind: 'received' | 'refunded' | 'kept' | 'advance';
+  kind: 'received' | 'refunded' | 'kept' | 'advance' | 'advance_refund';
   amountCents: number;
   method: PaymentMethod | null;
   reference: string;
