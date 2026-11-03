@@ -7,7 +7,8 @@ import { financeHome } from '../../lib/access';
 import { DEFAULT_PERIOD, keepWithinLocation, parsePeriod, periodRange, withPeriod, type Period } from '../../lib/financePeriod';
 import { Loading, PageHeader, Segmented, Tabs } from '../../components/ui';
 import { todayIn } from '../../lib/time';
-import type { FinanceReport } from '../../types';
+import type { FinanceReport } from '../../types';
+import { qd } from '../../lib/queryDefs';
 
 export { PERIOD_WORD } from '../../lib/financePeriod';
 
@@ -43,10 +44,8 @@ export type PeriodReport = FinanceReport & { months: Period };
  */
 export function useFinanceReport(months: Period) {
   const loc = useLocation();
-  const { from, to } = periodRange(months, todayIn(loc.timezone));
-  return useQuery({
-    queryKey: ['reports', loc.id, from, to],
-    queryFn: async (): Promise<PeriodReport> => ({ ...(await api.get<FinanceReport>('/reports/finance', { locationId: loc.id, from, to })), months }),
+  return useQuery<PeriodReport>({
+    ...qd.financeReport(loc.id, todayIn(loc.timezone), months),
     placeholderData: keepWithinLocation(loc.id),
   });
 }

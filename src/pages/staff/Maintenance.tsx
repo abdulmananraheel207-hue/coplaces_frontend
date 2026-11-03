@@ -10,7 +10,8 @@ import { Button, Chip, Empty, ErrorNote, Field, Input, Loading, Modal, PageHeade
 import { downloadCsv, titleCase } from '../../lib/format';
 import { useRefresh, useResources } from '../../lib/queries';
 import { addDays, daysBetween, fmtDate, fmtDateTime, todayIn } from '../../lib/time';
-import type { AssetStatus, Issue, IssuePriority, SpaceAsset, SpaceTask, TaskKind } from '../../types';
+import type { AssetStatus, Issue, IssuePriority, SpaceAsset, SpaceTask, TaskKind } from '../../types';
+import { qd } from '../../lib/queryDefs';
 
 type Tab = 'problems' | 'schedule' | 'equipment';
 
@@ -35,7 +36,7 @@ function Problems({ space }: { space: string }) {
   const [show, setShow] = useState<'active' | 'resolved' | 'all'>('active');
   const [reporting, setReporting] = useState(false);
   const [resolving, setResolving] = useState<Issue | null>(null);
-  const q = useQuery({ queryKey: ['issues', loc.id, space], queryFn: () => api.get<Issue[]>('/issues', { locationId: loc.id, resourceId: space }) });
+  const q = useQuery(qd.issues(loc.id, space));
   const rows = (q.data ?? []).filter((i) => (show === 'all' ? true : show === 'resolved' ? i.status === 'resolved' : i.status !== 'resolved'));
   const patch = useMutation({
     mutationFn: (v: { id: string; body: object }) => api.patch(`/issues/${v.id}`, v.body),
@@ -290,7 +291,7 @@ function Schedule({ space }: { space: string }) {
   const today = todayIn(loc.timezone);
   const [editing, setEditing] = useState<SpaceTask | 'new' | null>(null);
   const [history, setHistory] = useState<SpaceTask | null>(null);
-  const q = useQuery({ queryKey: ['tasks', loc.id, space], queryFn: () => api.get<SpaceTask[]>('/tasks', { locationId: loc.id, resourceId: space }) });
+  const q = useQuery(qd.tasks(loc.id, space));
   const done = useMutation({
     mutationFn: (id: string) => api.post(`/tasks/${id}/done`, {}),
     onSuccess: () => {
@@ -478,7 +479,7 @@ function Equipment({ space }: { space: string }) {
   const today = todayIn(loc.timezone);
   const [status, setStatus] = useState<'' | AssetStatus>('');
   const [editing, setEditing] = useState<SpaceAsset | 'new' | null>(null);
-  const q = useQuery({ queryKey: ['assets', loc.id, space, status], queryFn: () => api.get<SpaceAsset[]>('/assets', { locationId: loc.id, resourceId: space, status }) });
+  const q = useQuery(qd.assets(loc.id, space, status));
   const remove = useMutation({
     mutationFn: (id: string) => api.del(`/assets/${id}`),
     onSuccess: () => {
@@ -584,9 +585,9 @@ export default function Maintenance() {
   const space = params.get('space') ?? '';
   const [tab, setTab] = useState<Tab>('problems');
   const spaces = useSpaces();
-  const issues = useQuery({ queryKey: ['issues', loc.id, ''], queryFn: () => api.get<Issue[]>('/issues', { locationId: loc.id }) });
-  const tasks = useQuery({ queryKey: ['tasks', loc.id, ''], queryFn: () => api.get<SpaceTask[]>('/tasks', { locationId: loc.id }) });
-  const assets = useQuery({ queryKey: ['assets', loc.id, '', ''], queryFn: () => api.get<SpaceAsset[]>('/assets', { locationId: loc.id }) });
+  const issues = useQuery(qd.issues(loc.id, ''));
+  const tasks = useQuery(qd.tasks(loc.id, ''));
+  const assets = useQuery(qd.assets(loc.id, '', ''));
   const open = (issues.data ?? []).filter((i) => i.status !== 'resolved').length;
   const overdue = (tasks.data ?? []).filter((t) => t.overdue).length;
   const repair = (assets.data ?? []).filter((a) => a.status === 'needs_repair').length;

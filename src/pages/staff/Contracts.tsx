@@ -11,7 +11,8 @@ import { Button, Chip, Empty, ErrorNote, Field, Input, Loading, Modal, PageHeade
 import { csvAmount, downloadCsv, fromCents, KIND_LABEL, METHOD_LABEL, money, titleCase, toCents } from '../../lib/format';
 import { FINANCE_KEYS, useRefresh, useResources } from '../../lib/queries';
 import { fmtDate, localDateOf, todayIn } from '../../lib/time';
-import type { Contract, DepositEntry, PaymentMethod } from '../../types';
+import type { Contract, DepositEntry, PaymentMethod } from '../../types';
+import { qd } from '../../lib/queryDefs';
 
 const contractTone = { draft: 'hold', active: 'ok', ended: 'idle', cancelled: 'idle' } as const;
 const depositLabel = { pending: 'Not received', held: 'Held', refunded: 'Refunded', forfeited: 'Kept' } as const;
@@ -268,7 +269,7 @@ function Contracts() {
   const loc = useLocation();
   const toast = useToast();
   const refresh = useRefresh();
-  const q = useQuery({ queryKey: ['contracts', loc.id], queryFn: () => api.get<Contract[]>('/contracts', { locationId: loc.id }) });
+  const q = useQuery(qd.contracts(loc.id));
   const [editing, setEditing] = useState<Contract | null>(null);
   const [creating, setCreating] = useState(false);
   const [editingCompany, setEditingCompany] = useState<Contract | null>(null);

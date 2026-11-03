@@ -19,7 +19,8 @@ import { fmtDate } from '../../lib/time';
 import { useFloorObjects, useFloors, useOccupancy, useRefresh, useResources, useSchedule } from '../../lib/queries';
 import { buildSpaceItems, type SpaceItem } from '../../lib/spaceState';
 import { todayIn } from '../../lib/time';
-import type { Issue, Occupancy, Resource, SpaceAsset, SpaceTask } from '../../types';
+import type { Issue, Occupancy, Resource, SpaceAsset, SpaceTask } from '../../types';
+import { qd } from '../../lib/queryDefs';
 
 // The editor pulls in the whole 3D scene, so it is only fetched when someone opens it.
 const FloorPlanEditor = lazy(() => import('../../components/space3d/FloorPlanEditor'));
@@ -165,10 +166,7 @@ export default function Spaces() {
   // With the 3D editor, spaces are drawn on floors; Add space only names the floors. Without it, spaces are added one by one.
   const floorsFirst = can3d;
   const addSpace = () => (floorsFirst ? setAddingFloors(true) : setEditing('new'));
-  const assignments = useQuery({
-    queryKey: ['assignments', loc.id],
-    queryFn: () => api.get<{ id: string; resourceId: string; startDate: string; endDate: string | null }[]>('/assignments', { locationId: loc.id }),
-  });
+  const assignments = useQuery(qd.assignments(loc.id));
 
   const endAssignment = useMutation({
     mutationFn: (id: string) => api.patch(`/assignments/${id}`, { endDate: todayIn(loc.timezone) }),

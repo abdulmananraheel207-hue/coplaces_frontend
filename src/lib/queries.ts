@@ -1,58 +1,53 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { api } from '../api';
-import type { Amenity, ShiftTemplate, Announcement, AttendanceRow, Booking, Dashboard, FloorObject, Holiday, Occupancy, Plan, Resource, Schedule, Visitor } from '../types';
+import { qd } from './queryDefs';
 
 export const useDashboard = (locationId: string) =>
-  useQuery({ queryKey: ['dashboard', locationId], queryFn: () => api.get<Dashboard>('/reports/dashboard', { locationId }), refetchInterval: 60_000 });
+  useQuery({ ...qd.dashboard(locationId), refetchInterval: 60_000 });
 
 export const useSchedule = (locationId: string, date: string) =>
-  useQuery({ queryKey: ['schedule', locationId, date], queryFn: () => api.get<Schedule>('/bookings/schedule', { locationId, date }), refetchInterval: 60_000 });
+  useQuery({ ...qd.schedule(locationId, date), refetchInterval: 60_000 });
 
 export const useResources = (locationId: string) =>
-  useQuery({ queryKey: ['resources', locationId], queryFn: () => api.get<Resource[]>('/resources', { locationId }) });
+  useQuery(qd.resources(locationId));
 
 /** Kitchens, coffee machines and other things drawn on the floor plan. Only packages with the 3D view have them. */
 export const useFloorObjects = (locationId: string, enabled = true) =>
-  useQuery({ queryKey: ['floor-objects', locationId], queryFn: () => api.get<FloorObject[]>('/floor-plan/objects', { locationId }), enabled });
+  useQuery({ ...qd.floorObjects(locationId), enabled });
 
 /** The floors a location has, named or in use, and how many the package allows (null is unlimited). */
 export const useFloors = (locationId: string) =>
-  useQuery({ queryKey: ['floors', locationId], queryFn: () => api.get<{ floors: string[]; limit: number | null }>('/floors', { locationId }) });
+  useQuery(qd.floors(locationId));
 
 export const usePresent = (locationId: string) =>
-  useQuery({
-    queryKey: ['attendance', locationId, 'open'],
-    queryFn: () => api.get<AttendanceRow[]>('/attendance', { locationId, open: 1 }),
-    refetchInterval: 30_000,
-  });
+  useQuery({ ...qd.present(locationId), refetchInterval: 30_000 });
 
 export const useVisitors = (locationId: string, params: { date?: string; status?: string }, enabled = true) =>
-  useQuery({ queryKey: ['visitors', locationId, params], queryFn: () => api.get<Visitor[]>('/visitors', { locationId, ...params }), enabled });
+  useQuery({ ...qd.visitors(locationId, params), enabled });
 
 /** Bookings starting from one date to another, both included. */
 export const useBookingsRange = (locationId: string, from: string, to: string) =>
-  useQuery({ queryKey: ['bookings', locationId, from, to], queryFn: () => api.get<Booking[]>('/bookings', { locationId, from, to, limit: 5000 }) });
+  useQuery(qd.bookingsRange(locationId, from, to));
 
 export const useHolidays = (locationId: string, from?: string, to?: string) =>
-  useQuery({ queryKey: ['holidays', locationId, from, to], queryFn: () => api.get<Holiday[]>(`/locations/${locationId}/holidays`, { from, to }) });
+  useQuery(qd.holidays(locationId, from, to));
 
 export const useAnnouncements = (locationId: string) =>
-  useQuery({ queryKey: ['announcements', locationId], queryFn: () => api.get<Announcement[]>('/announcements', { locationId }) });
+  useQuery(qd.announcements(locationId));
 
 /** How busy each space has been over the last so many days. */
 export const useOccupancy = (locationId: string, days: number, enabled = true) =>
-  useQuery({ queryKey: ['occupancy', locationId, days], queryFn: () => api.get<Occupancy>('/reports/occupancy', { locationId, days }), enabled, staleTime: 60_000 });
+  useQuery({ ...qd.occupancy(locationId, days), enabled, staleTime: 60_000 });
 
 /** The shifts of a location, for the booking form and for the page that manages them. With a member id, only the ones that member can use. */
 export const useShifts = (locationId: string, memberId?: string, enabled = true) =>
-  useQuery({ queryKey: ['shifts', locationId, memberId ?? ''], queryFn: () => api.get<ShiftTemplate[]>('/shifts', { locationId, memberId }), enabled });
+  useQuery({ ...qd.shifts(locationId, memberId), enabled });
 
 /** The amenities a location offers (tea, coffee, food), for setup, the member forms and the front desk. */
 export const useAmenities = (locationId: string, enabled = true) =>
-  useQuery({ queryKey: ['amenities', locationId], queryFn: () => api.get<Amenity[]>('/amenities', { locationId }), enabled });
+  useQuery({ ...qd.amenities(locationId), enabled });
 
 export const usePlans = (locationId: string) =>
-  useQuery({ queryKey: ['plans', locationId], queryFn: () => api.get<Plan[]>('/plans', { locationId }) });
+  useQuery(qd.plans(locationId));
 
 /**
  * Every cached query that shows money: the finance reports, the dashboard's month figures, invoices and payments,

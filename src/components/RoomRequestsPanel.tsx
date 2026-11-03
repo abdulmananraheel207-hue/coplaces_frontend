@@ -6,14 +6,15 @@ import { useRefresh } from '../lib/queries';
 import { fmtDate } from '../lib/time';
 import type { RoomRequest } from '../types';
 import { Button, Chip, Field, Input, Section } from './ui';
-import { useToast } from './toast';
+import { useToast } from './toast';
+import { qd } from '../lib/queryDefs';
 
 /** Requests for rooms that are waiting for a decision. Approving one makes the booking; the other asks for that time are marked taken. */
 export function RoomRequestsPanel() {
   const loc = useLocation();
   const toast = useToast();
   const refresh = useRefresh();
-  const q = useQuery({ queryKey: ['requests', loc.id, 'pending'], queryFn: () => api.get<RoomRequest[]>('/requests', { locationId: loc.id, status: 'pending' }), refetchInterval: 30_000 });
+  const q = useQuery({ ...qd.pendingRequests(loc.id), refetchInterval: 30_000 });
   const [rejecting, setRejecting] = useState<string | null>(null);
   const [reason, setReason] = useState('');
   const done = () => void refresh('requests', 'bookings', 'schedule', 'dashboard');

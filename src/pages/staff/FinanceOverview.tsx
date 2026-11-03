@@ -17,7 +17,8 @@ import { downloadCsv, METHOD_LABEL, money, moneyWhole, titleCase } from '../../l
 import { marginNote, toneOf } from '../../lib/profitLoss';
 import { fmtDate, fmtMonth, localDateOf } from '../../lib/time';
 import type { InvoiceRow } from '../../types';
-import { PERIOD_WORD, PeriodPicker, useFinancePeriod, useFinanceReport } from './Finance';
+import { PERIOD_WORD, PeriodPicker, useFinancePeriod, useFinanceReport } from './Finance';
+import { qd } from '../../lib/queryDefs';
 
 export { INCOME_LABEL };
 
@@ -76,14 +77,12 @@ export default function FinanceOverview() {
 
   // Invoice rows for the invoice charts, only for people who may read invoices. Both are checked against the report.
   const invoices = useQuery({
-    queryKey: ['invoices', loc.id, 'overview', 'all'],
-    queryFn: () => api.get<InvoiceRow[]>('/invoices', { locationId: loc.id }),
+    ...qd.overviewInvoices(loc.id, 'all'),
     enabled: mayInvoices,
     placeholderData: keepWithinLocation(loc.id),
   });
   const open = useQuery({
-    queryKey: ['invoices', loc.id, 'overview', 'open'],
-    queryFn: () => api.get<InvoiceRow[]>('/invoices', { locationId: loc.id, status: 'open' }),
+    ...qd.overviewInvoices(loc.id, 'open'),
     enabled: mayInvoices && show.owed,
     placeholderData: keepWithinLocation(loc.id),
   });

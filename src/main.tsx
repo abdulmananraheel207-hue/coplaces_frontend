@@ -10,7 +10,8 @@ import './index.css';
 import './glass.css';
 
 const queryClient = new QueryClient({
-  defaultOptions: { queries: { staleTime: 15_000, refetchOnWindowFocus: true, retry: 1 } },
+  // Data stays fresh for a minute, so moving between pages reuses it; older data still shows at once while it refreshes.
+  defaultOptions: { queries: { staleTime: 60_000, gcTime: 30 * 60_000, refetchOnWindowFocus: true, retry: 1 } },
 });
 
 createRoot(document.getElementById('root')!).render(

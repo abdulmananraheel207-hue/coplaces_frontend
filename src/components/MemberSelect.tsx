@@ -1,10 +1,11 @@
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../api';
 import type { MemberRow } from '../types';
-import { Select } from './ui';
+import { Select } from './ui';
+import { qd } from '../lib/queryDefs';
 
 export function useMembers(locationId: string) {
-  return useQuery({ queryKey: ['members', locationId], queryFn: () => api.get<MemberRow[]>('/members', { locationId }) });
+  return useQuery(qd.members(locationId));
 }
 
 export function MemberSelect({

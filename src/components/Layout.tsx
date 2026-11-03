@@ -1,7 +1,8 @@
-import { Suspense, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { createContext, Suspense, useContext, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { NavLink, Outlet, useLocation as useRoute } from 'react-router';
 import { Building2, CalendarDays, CreditCard, DoorOpen, FileSignature, Fingerprint, Megaphone, Wrench, LayoutDashboard, LayoutGrid, LogOut, Menu, Package, Receipt, Settings, Tags, UserRound, Users, X } from 'lucide-react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { prefetchPage, WARM_ORDER } from '../lib/prefetch';
 import { api } from '../api';
 import { useAuth, useFeature } from '../auth';
 import { accessLabel, can } from '../lib/permissions';
@@ -22,11 +23,18 @@ export function Plate({ code, small }: { code: string; small?: boolean }) {
   );
 }
 
+/** Starts fetching a page's data the moment someone points at, focuses or touches its link. */
+const PrefetchLink = createContext<(to: string) => void>(() => undefined);
+
 function SideLink({ to, icon, children, end }: { to: string; icon?: ReactNode; children: ReactNode; end?: boolean }) {
+  const prefetch = useContext(PrefetchLink);
   return (
     <NavLink
       to={to}
       end={end}
+      onPointerEnter={() => prefetch(to)}
+      onFocus={() => prefetch(to)}
+      onTouchStart={() => prefetch(to)}
       className={({ isActive }) =>
         `group relative flex items-center gap-3 rounded-lg px-3 py-2 text-[14.5px] font-semibold transition-colors ${
           isActive ? 'text-white' : 'text-white/65 hover:bg-white/[0.05] hover:text-white'
@@ -119,6 +127,31 @@ export function StaffShell() {
   const [open, setOpen] = useState(false);
   const route = useRoute();
   useEffect(() => setOpen(false), [route.pathname]);
+  const qc = useQueryClient();
+  const who = user && location ? { loc: location, user, features: org?.features ?? [] } : null;
+  const prefetch = (to: string) => {
+    if (who) void prefetchPage(qc, to, who);
+  };
+  // After the first page has drawn, fetch the main pages' data one page at a time in idle moments, so opening them
+  // later shows data at once. Restarts when the location changes; stops when the shell goes away.
+  const warmKey = `${user?.id}:${location?.id}`;
+  useEffect(() => {
+    if (!who) return;
+    let stopped = false;
+    const idle = (fn: () => void) => (typeof window.requestIdleCallback === 'function' ? window.requestIdleCallback(fn, { timeout: 4000 }) : window.setTimeout(fn, 500));
+    const queue = WARM_ORDER.filter((p) => p !== `/${window.location.pathname.split('/')[1] ?? ''}`);
+    const next = () => {
+      const to = queue.shift();
+      if (stopped || !to) return;
+      void prefetchPage(qc, to, who).finally(() => idle(next));
+    };
+    const first = window.setTimeout(() => idle(next), 1500);
+    return () => {
+      stopped = true;
+      window.clearTimeout(first);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [warmKey]);
   if (!user || !location) return null;
   // How many problems are waiting, shown on the Maintenance link for whoever handles them.
   const waiting = useQuery({
@@ -177,6 +210,7 @@ export function StaffShell() {
           )}
         </div>
 
+        <PrefetchLink.Provider value={prefetch}>
         <SideNav>
           <SideLink to="/" end icon={<LayoutGrid size={17} />}>
             Today
@@ -238,6 +272,7 @@ export function StaffShell() {
             Settings
           </SideLink>
         </SideNav>
+        </PrefetchLink.Provider>
 
         <UserFooter name={user.name} role={accessLabel(user)} onLogout={() => void logout()} />
       </aside>

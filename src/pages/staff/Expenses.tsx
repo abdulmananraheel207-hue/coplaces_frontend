@@ -8,7 +8,8 @@ import { Button, ConfirmButton, Empty, ErrorNote, Field, Input, Loading, Modal, 
 import { csvAmount, downloadCsv, fromCents, money, titleCase, toCents } from '../../lib/format';
 import { FINANCE_KEYS, useRefresh } from '../../lib/queries';
 import { addDays, addMonths, fmtDate, todayIn } from '../../lib/time';
-import type { Expense } from '../../types';
+import type { Expense } from '../../types';
+import { qd } from '../../lib/queryDefs';
 
 export const EXPENSE_CATEGORIES = ['rent', 'utilities', 'internet', 'cleaning', 'supplies', 'salaries', 'maintenance', 'marketing', 'software', 'other'];
 
@@ -87,12 +88,7 @@ export default function Expenses() {
   const [category, setCategory] = useState('');
   const [editing, setEditing] = useState<Expense | 'new' | null>(null);
 
-  const from = month ? `${month}-01` : undefined;
-  const to = month ? addDays(`${addMonths(month, 1)}-01`, -1) : undefined;
-  const list = useQuery({
-    queryKey: ['expenses', loc.id, month, category],
-    queryFn: () => api.get<Expense[]>('/expenses', { locationId: loc.id, from, to, category }),
-  });
+  const list = useQuery(qd.expenses(loc.id, month, category));
   const remove = useMutation({
     mutationFn: (id: string) => api.del(`/expenses/${id}`),
     onSuccess: () => {

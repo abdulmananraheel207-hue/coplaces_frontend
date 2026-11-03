@@ -7,7 +7,8 @@ import { useLocation } from '../../auth';
 import { Button, Empty, ErrorNote, Field, Input, Loading, Select } from '../../components/ui';
 import { csvAmount, downloadCsv, METHOD_LABEL, money } from '../../lib/format';
 import { fmtDate, localDateOf, todayIn } from '../../lib/time';
-import type { PaymentRow } from '../../types';
+import type { PaymentRow } from '../../types';
+import { qd } from '../../lib/queryDefs';
 
 export default function Payments() {
   const loc = useLocation();
@@ -16,10 +17,7 @@ export default function Payments() {
   const [to, setTo] = useState(today);
   const [method, setMethod] = useState('');
 
-  const list = useQuery({
-    queryKey: ['payments', loc.id, from, to, method],
-    queryFn: () => api.get<PaymentRow[]>('/payments', { locationId: loc.id, from, to, method }),
-  });
+  const list = useQuery(qd.payments(loc.id, from, to, method));
   const rows = list.data ?? [];
   const total = rows.reduce((s, p) => s + p.amountCents, 0);
 

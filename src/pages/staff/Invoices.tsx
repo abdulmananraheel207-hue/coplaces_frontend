@@ -13,7 +13,8 @@ import { FINANCE_KEYS, useRefresh } from '../../lib/queries';
 import { addDays, fmtDate, todayIn } from '../../lib/time';
 import { keepWithinLocation } from '../../lib/financePeriod';
 import { useDebounced } from '../../lib/useDebounced';
-import type { InvoiceRow } from '../../types';
+import type { InvoiceRow } from '../../types';
+import { qd } from '../../lib/queryDefs';
 
 interface Line {
   description: string;
@@ -190,8 +191,7 @@ export default function Invoices() {
   // The search goes to the server once typing pauses, and the rows already shown stay until the answer arrives.
   const search = useDebounced(q.trim(), 300);
   const list = useQuery({
-    queryKey: ['invoices', loc.id, status, search],
-    queryFn: () => api.get<InvoiceRow[]>('/invoices', { locationId: loc.id, status, q: search }),
+    ...qd.invoices(loc.id, status, search),
     placeholderData: keepWithinLocation(loc.id),
   });
   const rows = list.data ?? [];
