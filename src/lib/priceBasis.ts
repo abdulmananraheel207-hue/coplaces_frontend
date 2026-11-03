@@ -19,7 +19,7 @@ export function basisNote(b: PriceBasis | undefined, currency: string, staff: bo
     case 'shift':
       return `${b.name} shift price (set on the shift in Plans)`;
     case 'hourly':
-      return `${money(b.rateCents, currency)} an hour (from the price list)`;
+      return `${money(b.rateCents, currency)} an hour (set on the Pricing and credit hours page)`;
     default: {
       // A basis this app does not know yet says nothing rather than something wrong.
       const unknown: never = b;

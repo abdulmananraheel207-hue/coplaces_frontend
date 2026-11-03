@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { fromMinutes, minutesOfDay, todayIn, toMinutes } from '../lib/time';
+import { closeMinutes, fromMinutes, minutesOfDay, onBusinessDay, todayIn, toMinutes } from '../lib/time';
 import { Select } from './ui';
 
 /** The half-hour slot to start from: the current one on today's date, otherwise opening time. */
@@ -7,14 +7,15 @@ export function defaultViewTime(date: string, tz: string, openTime: string, clos
   if (date !== todayIn(tz)) return openTime;
   const now = minutesOfDay(new Date().toISOString(), tz);
   const m = Math.floor(now / 30) * 30;
-  return m < toMinutes(openTime) || m >= toMinutes(closeTime) ? openTime : fromMinutes(m);
+  const at = onBusinessDay(m, toMinutes(openTime));
+  return at < toMinutes(openTime) || at >= closeMinutes(openTime, closeTime) ? openTime : fromMinutes(m);
 }
 
 /** Picks the time of day the 3D view shows room availability for. */
 export function ViewAtTime({ openTime, closeTime, value, onChange }: { openTime: string; closeTime: string; value: string; onChange: (t: string) => void }) {
   const options = useMemo(() => {
     const out: string[] = [];
-    for (let m = toMinutes(openTime); m < toMinutes(closeTime); m += 30) out.push(fromMinutes(m));
+    for (let m = toMinutes(openTime); m < closeMinutes(openTime, closeTime); m += 30) out.push(fromMinutes(m));
     return out;
   }, [openTime, closeTime]);
   return (

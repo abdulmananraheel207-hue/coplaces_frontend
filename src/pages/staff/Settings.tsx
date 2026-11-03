@@ -100,10 +100,10 @@ function LocationForm({ initial, onDone }: { initial?: Location; onDone: () => v
         <Field label="Currency" hint="3-letter code, like USD, GBP, EUR.">
           <Input required value={v.currency} onChange={(e) => set('currency', e.target.value.toUpperCase())} maxLength={3} />
         </Field>
-        <Field label="Opens">
+        <Field label="Business opens">
           <Input type="time" required value={v.openTime} onChange={(e) => set('openTime', e.target.value)} />
         </Field>
-        <Field label="Closes">
+        <Field label="Business closes" hint={v.closeTime <= v.openTime ? 'After midnight: it closes the next morning, and the night counts as the day it started.' : 'For a night business, set this earlier than the opening time, like 04:00.'}>
           <Input type="time" required value={v.closeTime} onChange={(e) => set('closeTime', e.target.value)} />
         </Field>
         <Field label="Sales tax on invoices (%)" hint="For example 13 or 16. Leave empty for no sales tax.">

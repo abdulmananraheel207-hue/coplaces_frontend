@@ -171,7 +171,7 @@ export function SpaceForm({ initial, kind, onDone }: { initial?: Resource; kind:
               <>No hourly price, so it cannot be booked by the hour. It is only used through plans and contracts.</>
             )}
           </p>
-          <p className="text-xs text-slate">Prices are kept in the price list, not on the space.</p>
+          <p className="text-xs text-slate">Prices are set on the Pricing and credit hours page, not on the space.</p>
         </Group>
       )}
 

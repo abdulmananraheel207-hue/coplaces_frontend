@@ -1,8 +1,13 @@
-import { closedReason, eachDay, monthGrid, weekdayOf } from '../lib/calendar';
-import { fmtDay, fmtTime, localDateOf, minutesOfDay, toMinutes } from '../lib/time';
-import type { Booking, Holiday, Location, Resource } from '../types';
+import { closedReason, eachDay, monthGrid } from '../lib/calendar';
+import { fmtDay, fmtTime, localDateOf } from '../lib/time';
+import { Chip } from './ui';
+import type { Booking, Holiday, Location } from '../types';
 
 const live = (b: Booking) => b.status !== 'cancelled';
+
+/** Where a booking stands, in a word: confirmed, checked in, did not check in, completed, no-show or cancelled. */
+export const statusChip = (b: Booking) =>
+  b.status === 'confirmed' && b.checkedInAt ? <Chip tone="mine">Checked in</Chip> : b.status === 'confirmed' && Date.parse(b.endsAt) < Date.now() ? <Chip tone="hold">Did not check in</Chip> : b.status === 'confirmed' ? <Chip tone="ok">Confirmed</Chip> : b.status === 'completed' ? <Chip tone="mine">Completed</Chip> : b.status === 'no_show' ? <Chip tone="hold">No-show</Chip> : <Chip tone="idle">Cancelled</Chip>;
 const DAY_LETTER = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
 /** Which bookings fall on which local date. */
@@ -75,99 +80,6 @@ export function BookingCalendar({
           );
         })}
       </div>
-    </div>
-  );
-}
-
-/** One row per room or desk, one column per day, with bars placed where the booking falls in the opening hours. */
-export function BookingTimeline({
-  from,
-  to,
-  today,
-  loc,
-  resources,
-  bookings,
-  holidays,
-  onOpen,
-  onPick,
-}: {
-  from: string;
-  to: string;
-  today: string;
-  loc: Location;
-  resources: Resource[];
-  bookings: Booking[];
-  holidays: Holiday[];
-  onOpen: (id: string) => void;
-  onPick: (resourceId: string, date: string) => void;
-}) {
-  const days = eachDay(from, to);
-  const wide = days.length <= 7;
-  const open = toMinutes(loc.openTime);
-  const span = Math.max(1, toMinutes(loc.closeTime) - open);
-  const rows = resources.filter((r) => r.kind !== 'dedicated_desk' && r.kind !== 'office' && r.status !== 'retired');
-  const map = new Map<string, Booking[]>();
-  for (const b of bookings.filter(live)) {
-    const key = `${b.resourceId}|${localDateOf(b.startsAt, loc.timezone)}`;
-    map.set(key, [...(map.get(key) ?? []), b]);
-  }
-  const cell = wide ? 'min-w-28' : 'min-w-7';
-
-  return (
-    <div className="surface-table">
-      <table className="w-full border-collapse text-sm" aria-label="Bookings by space and day">
-        <thead>
-          <tr>
-            <th className="sticky left-0 z-10 min-w-36 border-b border-r border-line bg-plaster px-2 py-1.5 text-left text-xs font-semibold uppercase tracking-wide text-slate">Space</th>
-            {days.map((d) => {
-              const closed = closedReason(d, loc.closedWeekdays, holidays);
-              return (
-                <th key={d} title={closed ?? undefined} className={`${cell} border-b border-r border-line px-1 py-1.5 text-center text-xs font-semibold ${closed ? 'bg-plaster text-slate' : d === today ? 'bg-signal text-ink' : 'bg-plaster'}`}>
-                  {wide ? fmtDay(d) : <><span className="block text-[10px] font-normal uppercase text-slate">{DAY_LETTER[(weekdayOf(d) + 6) % 7]!.slice(0, 1)}</span>{Number(d.slice(8))}</>}
-                </th>
-              );
-            })}
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((r) => (
-            <tr key={r.id}>
-              <th scope="row" className="sticky left-0 z-10 border-b border-r border-line bg-paper px-2 py-1 text-left font-semibold">
-                {r.name}
-              </th>
-              {days.map((d) => {
-                const closed = closedReason(d, loc.closedWeekdays, holidays);
-                const list = map.get(`${r.id}|${d}`) ?? [];
-                const past = d < today;
-                return (
-                  <td key={d} className={`relative h-9 border-b border-r border-line p-0 ${closed ? 'bg-plaster' : ''}`}>
-                    {list.length === 0 && !closed && !past ? (
-                      <button type="button" aria-label={`Book ${r.name} on ${fmtDay(d)}`} onClick={() => onPick(r.id, d)} className="absolute inset-0 hover:bg-ok-wash" />
-                    ) : null}
-                    {list.map((b) => {
-                      const full = b.allDay;
-                      const left = full ? 0 : Math.max(0, ((minutesOfDay(b.startsAt, loc.timezone) - open) / span) * 100);
-                      const width = full ? 100 : Math.min(100 - left, (Math.max(15, (Date.parse(b.endsAt) - Date.parse(b.startsAt)) / 60_000) / span) * 100);
-                      return (
-                        <button
-                          key={b.id}
-                          type="button"
-                          onClick={() => onOpen(b.id)}
-                          title={`${b.memberName}, ${full ? 'all day' : `${fmtTime(b.startsAt, loc.timezone)} to ${fmtTime(b.endsAt, loc.timezone)}`}`}
-                          style={{ left: `${left}%`, width: `${width}%` }}
-                          className={`absolute inset-y-1 min-w-1.5 truncate px-1 text-left text-[11px] font-semibold text-white ${barTone(b)} hover:opacity-80`}
-                        >
-                          {wide ? b.memberName : ''}
-                        </button>
-                      );
-                    })}
-                  </td>
-                );
-              })}
-            </tr>
-          ))}
-        </tbody>
-      </table>
     </div>
   );
 }

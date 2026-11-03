@@ -23,6 +23,7 @@ const LOADERS = {
   MemberVisitors: () => import('./pages/member/Visitors').then((m) => m.default),
   Announcements: () => import('./pages/staff/Announcements').then((m) => m.default),
   Bookings: () => import('./pages/staff/Bookings').then((m) => m.default),
+  Calendar: () => import('./pages/staff/Calendar').then((m) => m.default),
   Contracts: () => import('./pages/staff/Contracts').then((m) => m.default),
   Devices: () => import('./pages/staff/Devices').then((m) => m.default),
   Maintenance: () => import('./pages/staff/Maintenance').then((m) => m.default),
@@ -39,6 +40,7 @@ const LOADERS = {
   ProfitLoss: () => import('./pages/staff/ProfitLoss').then((m) => m.default),
   Payments: () => import('./pages/staff/Payments').then((m) => m.default),
   Plans: () => import('./pages/staff/Plans').then((m) => m.default),
+  Pricing: () => import('./pages/staff/Pricing').then((m) => m.default),
   Settings: () => import('./pages/staff/Settings').then((m) => m.default),
   PasswordForm: () => import('./pages/staff/Settings').then((m) => m.PasswordForm),
   Spaces: () => import('./pages/staff/Spaces').then((m) => m.default),
@@ -52,7 +54,7 @@ export const PAGES = Object.fromEntries(
 
 /** Which pages each kind of person can reach; only those are fetched ahead. */
 export const PRELOAD: Record<'staff' | 'member' | 'platform', Name[]> = {
-  staff: ['Dashboard', 'FrontDesk', 'Bookings', 'Members', 'MemberDetail', 'Spaces', 'FinanceLayout', 'FinanceIndex', 'FinanceOverview', 'ProfitLoss', 'Invoices', 'InvoiceView', 'Payments', 'Expenses', 'Plans', 'Contracts', 'Maintenance', 'Announcements', 'Devices', 'Settings', 'SpaceScan'],
+  staff: ['Dashboard', 'FrontDesk', 'Bookings', 'Calendar', 'Members', 'MemberDetail', 'Spaces', 'FinanceLayout', 'FinanceIndex', 'FinanceOverview', 'ProfitLoss', 'Invoices', 'InvoiceView', 'Payments', 'Expenses', 'Plans', 'Pricing', 'Contracts', 'Maintenance', 'Announcements', 'Devices', 'Settings', 'SpaceScan'],
   member: ['MemberHome', 'MemberBook', 'MemberVisitors', 'MemberInvoices', 'InvoiceView', 'PasswordForm', 'SpaceScan'],
   platform: ['PlatformOverview', 'PlatformSpaces', 'PlatformSpaceDetail', 'PlatformPackages', 'PlatformPayments', 'PasswordForm'],
 };

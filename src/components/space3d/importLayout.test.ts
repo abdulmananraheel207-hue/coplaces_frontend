@@ -49,7 +49,7 @@ describe('importing a floor plan', () => {
     const res = run(r);
     const t = res.draft.things[0] as ResourceThing;
     expect(t).toMatchObject({ kind: 'corporate_room', style: 'boardroom', name: 'Boardroom', capacity: 14, floor: '1', w: 7.5, d: 4.5, rot: 0 });
-    expect(t).not.toHaveProperty('hourlyRateCents'); // prices come from the price list, not the import
+    expect(t).not.toHaveProperty('hourlyRateCents'); // prices are set on the Pricing page, not by the import
     expect(res.added).toEqual({ rooms: 1, desks: 0, amenities: 0 });
 
     // Telling it the building is twice as wide doubles everything.

@@ -116,8 +116,6 @@ export interface MemberRow {
   depositCents: number;
   depositStatus: DepositStatus;
   depositReturnedCents: number;
-  /** Free meeting room time each month, in credit hours. Two credit hours are one hour. */
-  meetingCredits: number;
   status: MemberStatus;
   startDate: string;
   endDate: string | null;
@@ -144,6 +142,8 @@ export interface MemberDetail extends Omit<MemberRow, 'planName' | 'checkedIn'> 
   /** Every movement of their advance and security deposit, oldest first. */
   moneyEntries: { id: string; kind: 'advance' | 'received' | 'refunded' | 'kept'; amountCents: number; method: PaymentMethod | null; reference: string; occurredAt: string }[];
   desks: { id: string; name: string; kind: ResourceKind }[];
+  /** The spaces they get free credit hours on, with how many a month on each. Two credit hours are one hour. */
+  creditResources: { id: string; name: string; credits: number }[];
   /** What they get free each day, with how many they have had today. */
   amenities: AmenityAllowance[];
   amenityOwedCents: number;
@@ -175,11 +175,10 @@ export interface Resource {
   name: string;
   floor: string;
   capacity: number;
-  /**
-   * The only price a space has: per hour, set in the price list (PUT /resources/pricing). Zero means it cannot be booked
-   * by the hour. The old day, half-day, peak and no-plan prices were removed on the server.
-   */
+  /** The owner's hourly price, from the Pricing and credit hours tab. Zero means it cannot be booked by the hour: it is used through plans and contracts. */
   hourlyRateCents: number;
+  /** Members' meeting room credit hours can be used on this space (set on the Pricing and credit hours tab). */
+  creditsAllowed: boolean;
   amenities: string;
   status: ResourceStatus;
   notes: string;
@@ -271,6 +270,8 @@ export interface Booking {
   checkedInAt: string | null;
   /** A hot desk booked from opening to closing; anything shorter is part of a day. */
   allDay: boolean;
+  /** Made by the member's plan (its shifts) or booked by hand. */
+  source: 'manual' | 'plan';
   resourceName: string;
   resourceKind: ResourceKind;
   memberName: string;
@@ -392,6 +393,7 @@ export interface Dashboard {
     dedicatedDesks: { total: number; assigned: number };
     offices: { total: number; assigned: number };
     storage: { total: number; assigned: number };
+    overstaying: Overstay[];
   };
   finance: {
     mrrCents: number;
@@ -442,6 +444,29 @@ export interface AmenityAllowance {
   usedToday: number;
 }
 
+/** A member still in the building after their booking or shift ended. */
+export interface Overstay {
+  attendanceId: string;
+  memberId: string;
+  memberName: string;
+  resourceName: string;
+  endedAt: string;
+  minutesOver: number;
+  checkedInAt: string;
+}
+
+export interface AmenityRequest {
+  id: string;
+  memberId: string;
+  memberName: string;
+  name: string;
+  priceCents: number;
+  quantity: number;
+  status: 'pending' | 'served' | 'declined' | 'cancelled';
+  reason: string;
+  createdAt: string;
+}
+
 export interface AmenityOrder {
   id: string;
   memberId: string;
@@ -461,8 +486,12 @@ export interface MemberSummary {
   today: string;
   plan: Plan | null;
   meetingMinutes: { included: number; used: number };
+  /** The spaces their credit hours work on, with how many credit hours a month on each (two make an hour) and the minutes used this month. */
+  creditResources: { id: string; name: string; credits: number; usedMinutes: number }[];
   amenities: AmenityAllowance[];
   amenityDueCents: number;
+  amenityRequests: AmenityRequest[];
+  overstay: Overstay | null;
   checkedIn: { id: string; checkInAt: string } | null;
   upcomingBookings: Booking[];
   openInvoices: InvoiceRow[];

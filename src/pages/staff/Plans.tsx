@@ -109,7 +109,9 @@ function ShiftForm({ plan, initial, plans, spaces, onDone }: { plan: Plan | null
     active: initial?.active ?? true,
   });
   const set = <K extends keyof typeof v>(k: K, val: (typeof v)[K]) => setV((x) => ({ ...x, [k]: val }));
-  const valid = toMinutes(v.endTime) > toMinutes(v.startTime);
+  // A shift that ends at or before the time it starts runs past midnight, and belongs to the business day it starts on.
+  const valid = v.startTime !== v.endTime;
+  const pastMidnight = valid && toMinutes(v.endTime) < toMinutes(v.startTime);
   const save = useMutation({
     mutationFn: () => {
       const price = v.price.trim() === '' ? null : toCents(v.price);
@@ -154,7 +156,9 @@ function ShiftForm({ plan, initial, plans, spaces, onDone }: { plan: Plan | null
           <Input type="time" step={900} required value={v.endTime} onChange={(e) => set('endTime', e.target.value)} />
         </Field>
       </div>
-      {!valid && <p className="text-sm text-busy">The shift has to end after it starts.</p>}
+      {!valid && <p className="text-sm text-busy">The shift cannot start and end at the same time.</p>}
+      {pastMidnight && <p className="rounded-lg bg-plaster px-3 py-2 text-sm">This is a night shift: it ends the next morning at {v.endTime}, and counts as the business day it starts on.</p>}
+      <p className="text-xs text-slate">Your business hours are {loc.openTime} to {loc.closeTime}{toMinutes(loc.closeTime) <= toMinutes(loc.openTime) ? ' the next morning' : ''}. A shift has to fall inside them. You can change them in Settings.</p>
       <Field label={`Price (${loc.currency})`} hint="What a member pays for this exact slot. Leave empty to charge by the hour as usual.">
         <Input inputMode="decimal" value={v.price} onChange={(e) => set('price', e.target.value)} />
       </Field>

@@ -1,5 +1,5 @@
 import { Suspense, useEffect } from 'react';
-import { Navigate, Route, Routes, useLocation as useRoute } from 'react-router';
+import { Link, Navigate, Route, Routes, useLocation as useRoute } from 'react-router';
 import { isStaff, useAuth } from './auth';
 import { RequireFeature, RequirePermission, RequireRole } from './components/FeatureGate';
 import { MemberShell, PlatformShell, StaffShell } from './components/Layout';
@@ -21,6 +21,7 @@ const {
   MemberVisitors,
   Announcements,
   Bookings,
+  Calendar,
   Contracts,
   Devices,
   Maintenance,
@@ -37,6 +38,7 @@ const {
   ProfitLoss,
   Payments,
   Plans,
+  Pricing,
   Settings,
   PasswordForm,
   Spaces,
@@ -46,7 +48,7 @@ function NotFound() {
   return (
     <>
       <PageHeader title="Page not found" />
-      <Empty title="There is nothing at this address" hint="Use the menu to get back on track." />
+      <Empty title="There is nothing at this address" hint="Use the menu to get back on track." action={<Link to="/" className="font-semibold underline">Go to the home page</Link>} />
     </>
   );
 }
@@ -58,6 +60,7 @@ function StaffRoutes() {
         <Route index element={<Dashboard />} />
         <Route path="front-desk" element={<RequirePermission permission="front_desk"><FrontDesk /></RequirePermission>} />
         <Route path="bookings" element={<RequirePermission permission="bookings"><Bookings /></RequirePermission>} />
+        <Route path="calendar" element={<RequirePermission permission="bookings"><Calendar /></RequirePermission>} />
         <Route path="members" element={<RequirePermission permission="members"><Members /></RequirePermission>} />
         <Route path="members/:id" element={<RequirePermission permission="members"><MemberDetail /></RequirePermission>} />
         <Route path="spaces" element={<Spaces />} />
@@ -108,6 +111,14 @@ function StaffRoutes() {
           element={
             <RequirePermission permission="plans">
               <Plans />
+            </RequirePermission>
+          }
+        />
+        <Route
+          path="pricing"
+          element={
+            <RequirePermission permission="plans">
+              <Pricing />
             </RequirePermission>
           }
         />

@@ -30,6 +30,7 @@ const room = (o: Partial<Resource> = {}): Resource => ({
   name: 'Huddle Room 1',
   floor: '1',
   capacity: 4,
+  creditsAllowed: false,
   hourlyRateCents: 150_000,
   amenities: '',
   status: 'available',
@@ -84,7 +85,7 @@ describe('the space form has no price boxes', () => {
     show(room({ hourlyRateCents: 150_000 }));
     expect(document.body.textContent).toContain('an hour');
     expect(document.body.textContent).toContain('1,500');
-    expect(document.body.textContent).toContain('Prices are kept in the price list, not on the space.');
+    expect(document.body.textContent).toContain('Prices are set on the Pricing and credit hours page, not on the space.');
   });
 
   it('says plainly when a space has no price and cannot be booked by the hour', () => {

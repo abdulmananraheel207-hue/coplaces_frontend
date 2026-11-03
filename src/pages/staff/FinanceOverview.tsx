@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router';
 import { api } from '../../api';
 import { useAuth, useLocation } from '../../auth';
-import { CollectButton } from '../../components/Amenities';
+import { CollectButton, InvoiceAmenitiesButton } from '../../components/Amenities';
 import { BarList } from '../../components/charts/BarList';
 import { ColumnChart } from '../../components/charts/ColumnChart';
 import { MONEY_COLOR } from '../../components/charts/palette';
@@ -264,12 +264,13 @@ export default function FinanceOverview() {
                   <span className="flex items-center gap-3">
                     <span className="num font-semibold">{money(o.owedCents, cur)}</span>
                     {show.collectAmenities && <CollectButton memberId={o.memberId} label="Mark collected" />}
+                    {mayInvoices && <InvoiceAmenitiesButton memberId={o.memberId} />}
                   </span>
                 </li>
               ))}
             </ul>
           )}
-          <p className="mt-2 text-xs text-slate">Beyond each member's free amount for the day. It counts as income once you mark it collected.</p>
+          <p className="mt-2 text-xs text-slate">Beyond each member's free amount for the day. Collect it at the desk, or add it to the member's invoice. It counts as income once it is collected or the invoice is paid.</p>
         </Section>
       )}
 

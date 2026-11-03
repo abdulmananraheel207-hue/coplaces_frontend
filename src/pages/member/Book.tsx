@@ -8,7 +8,6 @@ import { AmenityFilter, amenitiesAmong, withAmenities } from '../../components/A
 import { ItemDetail } from '../../components/ItemDetail';
 import { ReportProblem } from '../../components/ReportProblem';
 import { RoomTimeline } from '../../components/RoomTimeline';
-import { isRoomKind } from '../../lib/catalogue';
 import { SpaceBoard, use3d } from '../../components/SpaceBoard';
 import { defaultViewTime, ViewAtTime } from '../../components/ViewAtTime';
 import { useToast } from '../../components/toast';
@@ -55,10 +54,12 @@ export default function Book() {
     onError: (e) => toast.error(errorMessage(e)),
   });
 
-  const resources = schedule.data?.resources ?? [];
+  // The schedule lists only the spaces the owner gave an hourly price: those are the ones a member can ask for.
+  const memberSchedule = schedule.data;
+  const resources = memberSchedule?.resources ?? [];
   const [needs, setNeeds] = useState<string[]>([]);
   const [reporting, setReporting] = useState<string | null>(null);
-  const roomSchedule = withAmenities(schedule.data, needs);
+  const roomSchedule = withAmenities(memberSchedule, needs);
   const myBookings = (mine.data ?? []).filter((b) => b.status === 'confirmed');
   const selected = myBookings.find((b) => b.id === mineId) ?? null;
 
@@ -91,7 +92,7 @@ export default function Book() {
             aside={<ViewAtTime openTime={loc.openTime} closeTime={loc.closeTime} value={viewTime} onChange={setViewTime} />}
             renderDetail={(item) => (
               <ItemDetail item={item} onClose={() => setSpaceId(null)}>
-                {isRoomKind(item.kind) && item.bookable && item.tone === 'ok' && !schedule.data?.closed && (
+                {item.bookable && item.tone === 'ok' && !schedule.data?.closed && (
                   <Button variant="primary" onClick={() => setDraft({ resourceId: item.id, date, startTime: viewTime })}>
                     Request at {viewTime}
                   </Button>
@@ -109,8 +110,8 @@ export default function Book() {
       {schedule.isLoading ? (
         <Loading />
       ) : (
-        <Section title="Meeting, board and training rooms" aside="Click an open time to ask for it">
-          {schedule.data && resources.some((r) => isRoomKind(r.kind)) ? (
+        <Section title="Spaces you can ask for" aside="Click an open time to ask for it">
+          {schedule.data && resources.length > 0 ? (
             <>
               <AmenityFilter options={amenitiesAmong(resources)} value={needs} onChange={setNeeds} />
               <RoomTimeline
@@ -123,11 +124,11 @@ export default function Book() {
                 <span className="flex items-center gap-1.5"><span className="hatch inline-block size-3 border border-ink/40" /> Already booked</span>
               </p>
               <p className="mt-3 text-sm text-slate">
-                Rates: {resources.filter((r) => isRoomKind(r.kind) && r.status === 'available').map((r) => `${r.name} ${money(r.hourlyRateCents, loc.currency)}/hour`).join(', ')}.
+                Rates: {resources.filter((r) => r.status === 'available').map((r) => `${r.name} ${money(r.hourlyRateCents, loc.currency)}/hour`).join(', ')}.
               </p>
             </>
           ) : (
-            <Empty title="No meeting rooms to ask for" />
+            <Empty title="Nothing to ask for yet" hint="The owner has not opened any spaces for hourly booking. Your plan's desk is already yours." />
           )}
         </Section>
       )}

@@ -1,7 +1,7 @@
 import type { Resource, ResourceKind, ResourceStatus, Schedule } from '../types';
 import { isRoomKind } from './catalogue';
 import { money } from './format';
-import { fmtTime, fromMinutes, minutesOfDay, toMinutes } from './time';
+import { closeMinutes, fmtTime, fromMinutes, minutesOfDay, onBusinessDay, toMinutes } from './time';
 
 export type Tone = 'ok' | 'busy' | 'hold' | 'mine' | 'idle';
 
@@ -66,9 +66,9 @@ export interface SpaceState {
 export function roomState(room: Resource, schedule: Schedule, at: Date): SpaceState {
   const tz = schedule.timezone;
   if (room.status !== 'available') return { tone: 'hold', label: STATUS_WORD[room.status] };
-  const atMin = minutesOfDay(at.toISOString(), tz);
+  const atMin = onBusinessDay(minutesOfDay(at.toISOString(), tz), toMinutes(schedule.openTime));
   if (atMin < toMinutes(schedule.openTime)) return { tone: 'idle', label: `Opens at ${schedule.openTime}` };
-  if (atMin >= toMinutes(schedule.closeTime)) return { tone: 'idle', label: 'Closed for the day' };
+  if (atMin >= closeMinutes(schedule.openTime, schedule.closeTime)) return { tone: 'idle', label: 'Closed for the day' };
   const mine = schedule.bookings.filter((b) => b.resourceId === room.id).sort((a, b) => a.startsAt.localeCompare(b.startsAt));
   const iso = at.toISOString();
   const current = mine.find((b) => b.startsAt <= iso && b.endsAt > iso);
@@ -109,9 +109,11 @@ export function assignedState(r: Resource): SpaceState {
 }
 
 export function stateOf(r: Resource, schedule: Schedule | undefined, at: Date): SpaceState {
-  if (r.kind === 'dedicated_desk' || r.kind === 'office' || r.kind === 'storage') return assignedState(r);
+  const assigned = r.kind === 'dedicated_desk' || r.kind === 'office' || r.kind === 'storage';
+  // A priced office or locker is booked by the hour like a room; unpriced ones are rented through contracts and plans.
+  if (assigned && r.hourlyRateCents <= 0) return assignedState(r);
   if (!schedule) return { tone: 'idle', label: 'Loading' };
-  return isRoomKind(r.kind) ? roomState(r, schedule, at) : deskState(r, schedule, at);
+  return isRoomKind(r.kind) || assigned ? roomState(r, schedule, at) : deskState(r, schedule, at);
 }
 
 export interface BuildOptions {
@@ -145,7 +147,8 @@ export function buildSpaceItems(resources: Resource[], schedule: Schedule | unde
         status: s.label,
         detail: s.detail,
         bookingId: s.bookingId,
-        bookable: (isRoomKind(r.kind) || r.kind === 'hot_desk') && r.status === 'available',
+        // Only spaces with an hourly price (set on the Pricing tab) are booked by the hour.
+        bookable: r.hourlyRateCents > 0 && r.status === 'available',
         rate: rateOf(r, options.currency),
         description: r.description,
         photoIds: r.photoIds,
@@ -166,8 +169,8 @@ export const TONE_COLOR: Record<Tone, string> = {
 export function nextSlot(schedule: Schedule | undefined, at: Date): string | undefined {
   if (!schedule) return undefined;
   const open = toMinutes(schedule.openTime);
-  const close = toMinutes(schedule.closeTime);
-  let m = Math.ceil(minutesOfDay(at.toISOString(), schedule.timezone) / 30) * 30;
+  const close = closeMinutes(schedule.openTime, schedule.closeTime);
+  let m = Math.ceil(onBusinessDay(minutesOfDay(at.toISOString(), schedule.timezone), open) / 30) * 30;
   if (m < open || m > close - 30) m = open;
   return fromMinutes(m);
 }

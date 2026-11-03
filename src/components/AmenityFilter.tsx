@@ -1,10 +1,10 @@
-import { amenityList, isRoomKind } from '../lib/catalogue';
+import { amenityList } from '../lib/catalogue';
 import type { Resource, Schedule } from '../types';
 
 /** Every feature at least one room offers, for a row of chips to filter by. */
 export function amenitiesAmong(resources: Resource[]) {
   const seen = new Map<string, string>();
-  for (const r of resources.filter((x) => isRoomKind(x.kind) && x.status !== 'retired')) for (const a of amenityList(r.amenities)) seen.set(a.toLowerCase(), a);
+  for (const r of resources.filter((x) => x.status !== 'retired')) for (const a of amenityList(r.amenities)) seen.set(a.toLowerCase(), a);
   return [...seen.values()].sort((a, b) => a.localeCompare(b));
 }
 
@@ -15,7 +15,6 @@ export function withAmenities(schedule: Schedule | undefined, needs: string[]): 
   return {
     ...schedule,
     resources: schedule.resources.filter((r) => {
-      if (!isRoomKind(r.kind)) return true;
       const has = amenityList(r.amenities).map((a) => a.toLowerCase());
       return want.every((w) => has.includes(w));
     }),

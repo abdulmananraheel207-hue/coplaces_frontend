@@ -2,10 +2,9 @@ import { useState, type FormEvent } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { api, errorMessage } from '../api';
 import { useLocation } from '../auth';
-import { isRoomKind } from '../lib/catalogue';
 import { money } from '../lib/format';
 import { useRefresh } from '../lib/queries';
-import { addDays, fmtDate, fromMinutes, todayIn, toMinutes } from '../lib/time';
+import { addDays, closeMinutes, crossesMidnight, fmtDate, fromMinutes, todayIn, toMinutes } from '../lib/time';
 import type { Resource, RoomRequest } from '../types';
 import { Button, Chip, ErrorNote, Field, Input, Modal, Select, Textarea } from './ui';
 import { useToast } from './toast';
@@ -23,17 +22,19 @@ function RequestForm({ resources, draft, onDone }: { resources: Resource[]; draf
   const loc = useLocation();
   const toast = useToast();
   const refresh = useRefresh();
-  const rooms = resources.filter((r) => isRoomKind(r.kind) && r.status === 'available');
+  // Members can ask for any space the owner gave an hourly price.
+  const rooms = resources.filter((r) => r.hourlyRateCents > 0 && r.status === 'available');
   const today = todayIn(loc.timezone);
   const [resourceId, setResourceId] = useState(draft.resourceId ?? rooms[0]?.id ?? '');
   const [date, setDate] = useState(draft.date ?? today);
   const [startTime, setStartTime] = useState(draft.startTime ?? loc.openTime);
-  const [endTime, setEndTime] = useState(() => fromMinutes(Math.min(toMinutes(draft.startTime ?? loc.openTime) + 60, toMinutes(loc.closeTime))));
+  const [endTime, setEndTime] = useState(() => fromMinutes(Math.min(toMinutes(draft.startTime ?? loc.openTime) + 60, closeMinutes(loc.openTime, loc.closeTime))));
   const [notes, setNotes] = useState('');
   const room = rooms.find((r) => r.id === resourceId);
   const openTime = room?.openTime ?? loc.openTime;
   const closeTime = room?.closeTime ?? loc.closeTime;
-  const ready = !!resourceId && !!date && !!startTime && !!endTime && toMinutes(endTime) > toMinutes(startTime);
+  const overnight = crossesMidnight(openTime, closeTime);
+  const ready = !!resourceId && !!date && !!startTime && !!endTime && (overnight ? startTime !== endTime : toMinutes(endTime) > toMinutes(startTime));
 
   // How many others are waiting, and what it would cost: both worked out by the server, before anything is sent.
   const queue = useQuery({ queryKey: ['requests', 'queue', resourceId, date, startTime, endTime], queryFn: () => api.get<{ ahead: number }>('/requests/queue', { resourceId, date, startTime, endTime }), enabled: ready, staleTime: 5_000 });
@@ -77,10 +78,10 @@ function RequestForm({ resources, draft, onDone }: { resources: Resource[]; draf
       </Field>
       <div className="grid grid-cols-2 gap-3">
         <Field label="From" hint={`Open ${openTime} to ${closeTime}`}>
-          <Input type="time" step={900} required min={openTime} max={closeTime} value={startTime} onChange={(e) => setStartTime(e.target.value)} />
+          <Input type="time" step={900} required min={overnight ? undefined : openTime} max={overnight ? undefined : closeTime} value={startTime} onChange={(e) => setStartTime(e.target.value)} />
         </Field>
         <Field label="Until">
-          <Input type="time" step={900} required min={openTime} max={closeTime} value={endTime} onChange={(e) => setEndTime(e.target.value)} />
+          <Input type="time" step={900} required min={overnight ? undefined : openTime} max={overnight ? undefined : closeTime} value={endTime} onChange={(e) => setEndTime(e.target.value)} />
         </Field>
       </div>
       <Field label="What is it for? (optional)">

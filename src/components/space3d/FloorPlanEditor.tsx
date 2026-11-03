@@ -973,7 +973,7 @@ function Properties({
               <Commit type="number" min={1} max={500} value={String(t.capacity)} onCommit={(v) => Number(v) >= 1 && onPatch({ capacity: Math.min(500, Math.round(Number(v))) })} />
             </Field>
           )}
-          {(isRoomKind(t.kind) || t.kind === 'hot_desk') && <p className="text-xs text-slate">Prices are kept in the price list, not in the floor plan.</p>}
+          {(isRoomKind(t.kind) || t.kind === 'hot_desk') && <p className="text-xs text-slate">Prices are set on the Pricing and credit hours page, not in the floor plan.</p>}
           {(isRoomKind(t.kind) || t.kind === 'office' || t.kind === 'hot_desk' || t.kind === 'dedicated_desk') && (
             <div>
               <p className="mb-1 text-[13px] font-semibold">What it offers</p>

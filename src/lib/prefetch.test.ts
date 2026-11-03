@@ -56,6 +56,20 @@ describe('which data is fetched ahead for a page', () => {
     expect(keys('/finance', person('staff', ['reports']))).toHaveLength(1);
   });
 
+  it('fetches the booking list for today and the next 30 days, as the Bookings page opens on', () => {
+    const k = keys('/bookings', person('staff', ['bookings']));
+    const today = new Date().toLocaleDateString('en-CA', { timeZone: LOC.timezone });
+    const until = new Date(Date.parse(`${today}T00:00:00Z`) + 30 * 86_400_000).toISOString().slice(0, 10);
+    expect(k).toContain(JSON.stringify(['bookings', 'L1', today, until]));
+  });
+
+  it('fetches the calendar and the pricing page only for those who may open them', () => {
+    expect(keys('/calendar', person('staff', ['bookings']))).toContain(JSON.stringify(['resources', 'L1']));
+    expect(keys('/pricing', person('staff', ['plans']))).toEqual([JSON.stringify(['resources', 'L1'])]);
+    expect(keys('/calendar', person('staff', ['plans']))).toEqual([]);
+    expect(keys('/pricing', person('staff', ['bookings']))).toEqual([]);
+  });
+
   it('warms only real pages', () => {
     for (const p of WARM_ORDER) expect(pageQueries(p, { loc: LOC, user: person('owner', PERMISSION_KEYS), features: ALL }).length).toBeGreaterThan(0);
   });

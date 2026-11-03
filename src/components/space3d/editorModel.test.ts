@@ -14,6 +14,7 @@ const res = (o: Partial<Resource> = {}): Resource => ({
   floor: '1',
   capacity: 4,
   hourlyRateCents: 100,
+  creditsAllowed: false,
   amenities: '',
   status: 'available',
   notes: '',
@@ -173,12 +174,12 @@ describe('saving', () => {
     const r = rs();
     const o = ob();
     let d = startDraft(r, o).draft;
-    d = { ...d, things: d.things.map((t) => (t.type === 'resource' && t.name === 'Boardroom' ? { ...t, name: 'Council Room' } : t)) };
+    d = { ...d, things: d.things.map((t) => (t.type === 'resource' && t.name === 'Boardroom' ? { ...t, name: 'Council Room', capacity: 9 } : t)) };
     const { body } = buildSave('loc', d, r, o);
-    expect(body.update[0]!.props).toEqual({ name: 'Council Room' });
+    expect(body.update[0]!.props).toEqual({ name: 'Council Room', capacity: 9 });
   });
 
-  it('never sends a price: the server takes prices only from the price list', () => {
+  it('never sends a price: prices are set on the Pricing and credit hours page', () => {
     const r = rs();
     const o = ob();
     let d = startDraft(r, o).draft;
@@ -217,6 +218,8 @@ describe('placing and fitting', () => {
     expect(t).toMatchObject({ type: 'resource', kind: 'hot_desk', style: 'standing', capacity: 1 });
     const hall = placeThing(empty, entry('corporate_room:training_hall'), '1', 0, 0, 0, [], 2).thing;
     expect(hall).toMatchObject({ capacity: 30 });
+    // new spaces carry no price: the owner prices them on the Pricing tab
+    expect(t).not.toHaveProperty('hourlyRateCents');
     expect(hall).not.toHaveProperty('hourlyRateCents');
   });
 

@@ -61,6 +61,8 @@ export const STYLES: Record<ResourceKind, StyleDef[]> = {
 };
 
 export const isRoomKind = (kind: ResourceKind) => kind === 'room' || kind === 'corporate_room';
+/** The rooms a member may ask for: meeting rooms and quiet focus rooms. The owner books everything else (board rooms, halls, studios) for them. */
+export const isMemberRoom = (r: { kind: ResourceKind; style: string }) => r.kind === 'room' && (r.style === '' || r.style === 'meeting' || r.style === 'focus');
 export const isDeskKind = (kind: ResourceKind) => kind === 'hot_desk' || kind === 'dedicated_desk';
 export const isAssignedKind = (kind: ResourceKind) => kind === 'dedicated_desk' || kind === 'office' || kind === 'storage';
 

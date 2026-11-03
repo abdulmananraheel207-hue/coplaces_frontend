@@ -21,9 +21,9 @@ describe('where a booking price came from', () => {
     expect(basisNote({ type: 'shift', name: 'Morning' }, 'PKR', true)).toBe('Morning shift price (set on the shift in Plans)');
   });
 
-  it('gives the hourly price and says it comes from the price list', () => {
-    expect(plain(basisNote({ type: 'hourly', rateCents: 150_000 }, 'PKR', true))).toBe('Rs 1,500 an hour (from the price list)');
-    expect(basisNote({ type: 'hourly', rateCents: 250 }, 'USD', false)).toBe('$2.50 an hour (from the price list)');
+  it('gives the hourly price and says where it is set', () => {
+    expect(plain(basisNote({ type: 'hourly', rateCents: 150_000 }, 'PKR', true))).toBe('Rs 1,500 an hour (set on the Pricing and credit hours page)');
+    expect(basisNote({ type: 'hourly', rateCents: 250 }, 'USD', false)).toBe('$2.50 an hour (set on the Pricing and credit hours page)');
   });
 
   it('says nothing without a basis', () => {

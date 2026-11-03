@@ -4,7 +4,8 @@ import { canUse } from './access';
 import { DEFAULT_PERIOD } from './financePeriod';
 import { can } from './permissions';
 import { qd } from './queryDefs';
-import { todayIn } from './time';
+import { monthGrid } from './calendar';
+import { addDays, todayIn } from './time';
 
 /** How long fetched data counts as fresh: within this, opening a page uses it without asking the server again. */
 export const FRESH_MS = 60_000;
@@ -34,7 +35,16 @@ export function pageQueries(path: string, { loc, user, features }: Who): Def[] {
       return [qd.present(id), qd.members(id), qd.amenities(id), ...(has('visitors') ? [qd.visitors(id, { date: today }), qd.visitors(id, { status: 'checked_in' })] : [])];
     case '/bookings':
       if (!can(user, 'bookings')) return [];
-      return [qd.schedule(id, today), qd.resources(id), qd.bookingsRange(id, today, today), qd.holidays(id, today, today), qd.pendingRequests(id)];
+      // The list opens on today and the next 30 days.
+      return [qd.schedule(id, today), qd.resources(id), qd.bookingsRange(id, today, addDays(today, 30)), qd.pendingRequests(id)];
+    case '/calendar': {
+      if (!can(user, 'bookings')) return [];
+      const grid = monthGrid(today);
+      return [qd.resources(id), qd.holidays(id, grid.from, grid.to)];
+    }
+    case '/pricing':
+      if (!can(user, 'plans')) return [];
+      return [qd.resources(id)];
     case '/members':
       if (!can(user, 'members')) return [];
       return [qd.members(id), qd.plans(id)];
@@ -71,4 +81,4 @@ export function prefetchPage(qc: QueryClient, path: string, who: Who) {
 }
 
 /** The pages warmed in the background after sign-in, most used first. */
-export const WARM_ORDER = ['/', '/front-desk', '/bookings', '/members', '/finance', '/spaces', '/plans', '/contracts', '/maintenance', '/announcements'];
+export const WARM_ORDER = ['/', '/front-desk', '/bookings', '/calendar', '/members', '/finance', '/spaces', '/plans', '/pricing', '/contracts', '/maintenance', '/announcements'];

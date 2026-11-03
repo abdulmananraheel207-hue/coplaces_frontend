@@ -1,9 +1,8 @@
 import { useEffect, useRef } from 'react';
 import { Plus } from 'lucide-react';
 import type { Resource, Schedule, ScheduleBooking } from '../types';
-import { isRoomKind } from '../lib/catalogue';
 import { STATUS_WORD } from '../lib/spaceState';
-import { fmtTime, fromMinutes, minutesOfDay, todayIn, toMinutes } from '../lib/time';
+import { closeMinutes, fmtTime, fromMinutes, minutesOfDay, onBusinessDay, todayIn, toMinutes } from '../lib/time';
 import { Button } from './ui';
 
 /** One row per room, hours across; booked time shows as bars. Click open space to start a booking. */
@@ -17,10 +16,10 @@ export function RoomTimeline({
   onOpen: (booking: ScheduleBooking, room: Resource) => void;
 }) {
   // Meeting rooms first, then the corporate ones; each keeps the order it came in.
-  const rooms = schedule.resources.filter((r) => isRoomKind(r.kind)).sort((a, b) => Number(a.kind === 'corporate_room') - Number(b.kind === 'corporate_room'));
+  const rooms = [...schedule.resources].sort((a, b) => Number(a.kind === 'corporate_room') - Number(b.kind === 'corporate_room'));
   const tz = schedule.timezone;
   const openMin = toMinutes(schedule.openTime);
-  const closeMin = toMinutes(schedule.closeTime);
+  const closeMin = closeMinutes(schedule.openTime, schedule.closeTime);
   const span = closeMin - openMin;
   const pct = (m: number) => `${((m - openMin) / span) * 100}%`;
 
@@ -30,7 +29,7 @@ export function RoomTimeline({
   const hours: number[] = [];
   for (let h = Math.ceil(openMin / 60); h * 60 <= closeMin; h++) hours.push(h);
 
-  const nowMin = schedule.date === todayIn(tz) ? minutesOfDay(new Date().toISOString(), tz) : null;
+  const nowMin = schedule.date === todayIn(tz) ? onBusinessDay(minutesOfDay(new Date().toISOString(), tz), openMin) : null;
   const showNow = nowMin !== null && nowMin >= openMin && nowMin <= closeMin;
 
   const scroller = useRef<HTMLDivElement>(null);
@@ -51,7 +50,7 @@ export function RoomTimeline({
           <div className="relative mr-6 h-8 flex-1" aria-hidden>
             {hours.map((h) => (
               <span key={h} className="num absolute top-1.5 -translate-x-1/2 text-xs text-slate" style={{ left: pct(h * 60) }}>
-                {String(h).padStart(2, '0')}
+                {String(h % 24).padStart(2, '0')}
               </span>
             ))}
           </div>
@@ -63,7 +62,7 @@ export function RoomTimeline({
           const unavailable = room.status !== 'available' || shutToday;
           // A space with its own hours is shaded outside them and cannot be picked there.
           const ownOpen = room.openTime ? Math.max(openMin, toMinutes(room.openTime)) : openMin;
-          const ownClose = room.closeTime ? Math.min(closeMin, toMinutes(room.closeTime)) : closeMin;
+          const ownClose = room.closeTime ? Math.min(closeMin, closeMinutes(room.openTime ?? schedule.openTime, room.closeTime)) : closeMin;
           return (
             <div key={room.id} className="flex border-b border-line last:border-b-0">
               <div className="sticky left-0 z-20 flex w-36 shrink-0 items-center justify-between gap-1 border-r border-line bg-paper px-2 py-2 sm:w-52 sm:px-3">
@@ -96,8 +95,8 @@ export function RoomTimeline({
                 {ownOpen > openMin && <span className="hatch pointer-events-none absolute inset-y-0 left-0 opacity-60" style={{ width: `${((ownOpen - openMin) / span) * 100}%` }} title={`Opens at ${room.openTime}`} aria-hidden />}
                 {ownClose < closeMin && <span className="hatch pointer-events-none absolute inset-y-0 right-0 opacity-60" style={{ width: `${((closeMin - ownClose) / span) * 100}%` }} title={`Closes at ${room.closeTime}`} aria-hidden />}
                 {mine.map((b) => {
-                  const s = Math.max(minutesOfDay(b.startsAt, tz), openMin);
-                  const e = Math.min(minutesOfDay(b.endsAt, tz), closeMin);
+                  const s = Math.max(onBusinessDay(minutesOfDay(b.startsAt, tz), openMin), openMin);
+                  const e = Math.min(onBusinessDay(minutesOfDay(b.endsAt, tz), openMin), closeMin);
                   const time = `${fmtTime(b.startsAt, tz)}–${fmtTime(b.endsAt, tz)}`;
                   const label = b.memberName ?? (b.mine ? 'You' : 'Booked');
                   const clickable = b.mine || b.memberId;
